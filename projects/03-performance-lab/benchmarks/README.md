@@ -11,24 +11,23 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 ### Measurement Framework Rules
 
 1. **High-Precision Clock Source**:
-   - Uses standard C++20 `std::chrono::high_resolution_clock` or native OS high-resolution timers (`QueryPerformanceCounter` on Windows, `clock_gettime(CLOCK_MONOTONIC)` on Linux).
+   - Uses standard C++20 `std::chrono::steady_clock` to record monotonic iteration durations in microseconds.
 
 2. **Warmup Protocol**:
-   - Each benchmark workload executes **5 warmup iterations** before recording timing measurements to populate L1/L2 CPU caches and stabilize CPU frequency scaling.
+   - Each benchmark workload executes **5 warmup iterations** before recording timing measurements to populate CPU caches.
 
 3. **Repeated Timed Iterations**:
    - Each workload executes **100 timed iterations**.
 
 4. **Statistical Metrics Reported**:
-   - **Mean Time**: Arithmetic average time per iteration ($\mu\text{s}$ or $\text{ns}$).
-   - **Median Time**: 50th percentile execution time ($\mu\text{s}$ or $\text{ns}$).
-   - **Standard Deviation**: Measure of statistical variance.
-   - **Minimum Time**: Lowest recorded execution time.
-   - **Maximum Time**: Highest recorded execution time (identifies OS scheduling latency spikes).
-   - **Throughput**: Calculated operations per second ($\text{Ops/sec}$) or bandwidth ($\text{MB/sec}$).
+   - **Mean Time**: Arithmetic average time per iteration ($\mu\text{s}$).
+   - **Median Time**: 50th percentile execution time ($\mu\text{s}$).
+   - **Standard Deviation**: Sample standard deviation ($s$, $N-1$ denominator).
+   - **Minimum & Maximum Time**: Extremes of measured iteration durations ($\mu\text{s}$).
+   - **Throughput & Bandwidth**: $\text{Ops/sec}$ and $\text{MB/s}$ ($1 \text{ MB} = 10^6 \text{ bytes}$).
 
 5. **Optimization Barrier Enforcement**:
-   - Benchmark loops wrap output results in memory barriers or volatile writes to prevent compiler dead-code elimination.
+   - Benchmark loops pass computed scalar values through `do_not_optimize()` and `clobber_memory()` to prevent compiler dead-code elimination.
 
 6. **Release Build Requirement**:
    - Canonical benchmark reports are gathered strictly from **Release builds** (`/O2` optimization, `NDEBUG`).
@@ -37,22 +36,16 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 
 ## Benchmark Suite Overview
 
-### 1. Milestone 2: Cache Locality & Data Layout (`bench_cache_locality`)
-- **Workload A**: AoS vs SoA vs AoSoA 3D position vector updates (100,000 items).
-- **Workload B**: Filtered property queries (single float attribute read across 100,000 items).
-- **Workload C**: Strided access patterns (stride 1, 2, 4, 8, 16, 32, 64 floats).
+### Milestone 1: Harness Validation Baseline (`bench_harness`)
+- **Workload A**: Integer Accumulation Loop (1,000,000 ops).
+- **Workload B**: Floating-Point Accumulation Loop (1,000,000 ops).
+- **Workload C**: Contiguous Array Traversal (500,000 uint64 elements = 4 MB data).
+- **Workload D**: Deterministic Scalar Array Transformation (250,000 float elements).
 
-### 2. Milestone 3: SIMD Vectorization (`bench_simd_vectorization`)
-- **Workload A**: Batch 3D vector dot products (Scalar vs Auto-vectorized vs AVX2 8-way SIMD).
-- **Workload B**: Batch Ray-AABB bounding box intersections (Scalar vs AVX2 4-way SIMD).
-
-### 3. Milestone 4: Lock-Free Concurrency Queues (`bench_lockfree_queues`)
-- **Workload A**: Single-Producer Single-Consumer throughput (`SPSCQueue` vs `MutexQueue`).
-- **Workload B**: Multi-Producer Multi-Consumer contention scaling across 2, 4, 8, and 16 worker threads (`MPMCQueue` vs `MutexQueue`).
-
-### 4. Milestone 5: Memory Allocators (`bench_allocator_churn`)
-- **Workload A**: High-frequency small-object allocation churn (1,000,000 allocations).
-- **Workload B**: `std::allocator` vs Capacity Reservation vs Linear `ArenaAllocator`.
+### Milestone 2: Cache Locality & Data Layout (`bench_cache_locality`)
+- **Suite 1 (Sequential Traversal)**: Compares AoS (Array of Structures), SoA (Structure of Arrays), and AoSoA (Array of Structures of Arrays, tile width 16) across 100,000 logical records (3.2 MB logical footprint). Evaluates $(\text{pos} \cdot \text{vel}) \times \text{mass}$ dot product kernel.
+- **Suite 2 (Constant-Access Stride)**: Evaluates strided accesses (strides 1, 2, 4, 8, 16, 32, 64, 128, 256) over a contiguous float array. Fixed access count of 100,000 elements ensures identical operation counts across all strides. Stride 16 (64 bytes) represents single cache-line spacing.
+- **Suite 3 (Working-Set Scaling)**: Evaluates single-pass traversal over working sets spanning 15 orders of magnitude (4 KiB to 64 MiB), measuring memory bandwidth as datasets scale from L1/L2 cache into DRAM.
 
 ---
 
@@ -60,3 +53,7 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 
 Benchmark execution text logs and CSV reports are saved to:
 `projects/03-performance-lab/benchmarks/reports/`
+
+Generated reports:
+- `harness_validation_release.csv` / `harness_validation_debug.csv`
+- `cache_locality_release.csv` / `cache_locality_debug.csv`

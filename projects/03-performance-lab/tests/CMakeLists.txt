@@ -5,3 +5,9 @@ target_link_libraries(test_benchmark_harness PRIVATE performance_lab)
 target_set_lab_warnings(test_benchmark_harness)
 
 add_test(NAME test_benchmark_harness COMMAND test_benchmark_harness)
+
+add_executable(test_cache_locality test_cache_locality.cpp)
+target_link_libraries(test_cache_locality PRIVATE performance_lab)
+target_set_lab_warnings(test_cache_locality)
+
+add_test(NAME test_cache_locality COMMAND test_cache_locality)

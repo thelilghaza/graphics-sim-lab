@@ -1,0 +1,2 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"cache_locality","workingset_64MiB","Debug","MSVC 1951","x86_64","Windows",5,100,49495.9270,47061.7500,5331.6403,46622.1000,66196.2000,338961547.28,1355.85

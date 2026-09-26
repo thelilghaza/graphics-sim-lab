@@ -17,6 +17,10 @@ add_executable(bench_harness benchmarks/bench_harness.cpp)
 target_link_libraries(bench_harness PRIVATE performance_lab)
 target_set_lab_warnings(bench_harness)
 
+add_executable(bench_cache_locality benchmarks/bench_cache_locality.cpp)
+target_link_libraries(bench_cache_locality PRIVATE performance_lab)
+target_set_lab_warnings(bench_cache_locality)
+
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()

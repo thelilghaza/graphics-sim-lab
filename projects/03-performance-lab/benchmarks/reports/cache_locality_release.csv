@@ -1,0 +1,2 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"cache_locality","workingset_64MiB","Release","MSVC 1951","x86_64","Windows",5,100,11604.2760,11435.1000,235.3603,11385.7000,12329.9000,1445778780.17,5783.12
