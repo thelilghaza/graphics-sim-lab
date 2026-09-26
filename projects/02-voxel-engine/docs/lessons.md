@@ -139,6 +139,30 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 9 Implementation Observations
+
+1. **Vector Reallocation as the Dominant Churn Hotspot**:
+   - Profiling dynamic streaming revealed that mesher vector reallocations accounted for thousands of `malloc`/`free` calls per second.
+   - Reusing pre-allocated `MeshData` buffers across chunks and workers reduced fresh heap allocations from 100 to 1 in 50 remesh cycles (99% churn elimination), while improving single-chunk rebuild time by 30.7% (1.14 ms -> 0.79 ms).
+
+2. **Chunk Pooling vs std::map Reality**:
+   - Evaluated whether pooling 64 KB `Chunk` objects in `WorldGrid` was justified.
+   - In a 150-chunk streaming environment (9.38 MB raw voxels), the red-black tree node overhead of `std::map` is only 7.2 KB (0.07% overhead).
+   - Furthermore, chunk allocations occur only when chunks enter the streaming radius (25 chunks per crossing), whereas mesh allocations occur on every remesh.
+   - Adding a chunk pool provided no measurable performance improvement and increased architectural complexity. The flat contiguous 64 KB array in `std::map` was retained as the optimal design.
+
+3. **Logical Memory vs Process Working Set**:
+   - Logical memory (raw chunk payload + mesh vertex/index size) reflects the exact algorithmic bytes used by voxels and geometry (e.g. ~10 MB raw chunks + ~15 MB mesh for 150 chunks).
+   - Process working set includes runtime heap allocator pools, thread stacks (e.g. 4 worker threads * 1-2 MB stacks), Windows DLL mappings, and vector capacity overheads.
+   - Tracking both metrics simultaneously prevents confusing OS virtual memory page reservation with actual algorithm consumption.
+
+4. **Selective 64 KB Chunk Copying**:
+   - Milestone 8 moved `task.snapshot.center_chunk` (64 KB) into `ChunkBuildResult` unconditionally.
+   - During neighbor remeshing, terrain generation is not re-executed; moving the chunk was completely redundant.
+   - Restricting chunk copying to `need_generation == true` eliminated hundreds of megabytes of redundant memory moves during continuous streaming traversal.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

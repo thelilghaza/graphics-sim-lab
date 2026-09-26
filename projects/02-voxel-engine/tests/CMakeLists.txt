@@ -19,4 +19,5 @@ add_voxel_test(test_naive_mesher "test_naive_mesher.cpp;../src/chunk.cpp;../src/
 add_voxel_test(test_greedy_mesher "test_greedy_mesher.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp")
 add_voxel_test(test_chunk_manager "test_chunk_manager.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp;../src/thread_pool.cpp;../src/chunk_snapshot.cpp;../src/chunk_manager.cpp")
 add_voxel_test(test_multithreading "test_multithreading.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp;../src/thread_pool.cpp;../src/chunk_snapshot.cpp;../src/chunk_manager.cpp")
+add_voxel_test(test_memory_optimization "test_memory_optimization.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp;../src/thread_pool.cpp;../src/chunk_snapshot.cpp;../src/chunk_manager.cpp")
 add_voxel_test(test_voxel_camera "test_voxel_camera.cpp;../src/camera.cpp")

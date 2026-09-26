@@ -53,6 +53,13 @@ add_executable(bench_multithreading benchmarks/bench_multithreading.cpp)
 target_link_libraries(bench_multithreading PRIVATE voxel_engine)
 target_set_lab_warnings(bench_multithreading)
 
+add_executable(bench_memory benchmarks/bench_memory.cpp)
+target_link_libraries(bench_memory PRIVATE voxel_engine)
+if(WIN32)
+  target_link_libraries(bench_memory PRIVATE psapi)
+endif()
+target_set_lab_warnings(bench_memory)
+
 add_executable(voxel_viewer
   src/gl_loader.cpp
   src/gl_mesh.cpp

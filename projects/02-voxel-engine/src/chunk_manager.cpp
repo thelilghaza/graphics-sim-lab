@@ -5,6 +5,13 @@
 #include <chrono>
 #include <cmath>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 namespace voxel_lab {
 
 namespace {
@@ -261,6 +268,7 @@ size_t ChunkManager::integrate_completed_jobs() {
                 desired_chunks.find(res.coord) == desired_chunks.end() ||
                 res.mesher_type != mesher_type) {
                 metrics.jobs_discarded_stale++;
+                recycle_mesh_buffer(std::move(res.mesh));
                 continue;
             }
 
@@ -274,8 +282,14 @@ size_t ChunkManager::integrate_completed_jobs() {
                 new_chunks_for_neighbor_remesh.push_back(res.coord);
             }
 
-            // Integrate mesh
-            meshes[res.coord] = std::move(res.mesh);
+            // Integrate mesh (recycle previous mesh buffer if replacing)
+            auto mit = meshes.find(res.coord);
+            if (mit != meshes.end()) {
+                recycle_mesh_buffer(std::move(mit->second));
+                mit->second = std::move(res.mesh);
+            } else {
+                meshes[res.coord] = std::move(res.mesh);
+            }
             recently_updated_meshes.push_back(res.coord);
             metrics.chunks_meshed_this_update++;
             metrics.total_chunks_meshed++;
@@ -363,7 +377,13 @@ bool ChunkManager::unload_chunk(const ChunkCoord& chunk_coord) {
     chunk_versions[chunk_coord] = ++next_version; // Invalidate any in-flight work
     desired_chunks.erase(chunk_coord);
     loaded_chunks.erase(chunk_coord);
-    meshes.erase(chunk_coord);
+
+    auto mit = meshes.find(chunk_coord);
+    if (mit != meshes.end()) {
+        recycle_mesh_buffer(std::move(mit->second));
+        meshes.erase(mit);
+    }
+
     world_grid.remove_chunk(chunk_coord);
     recently_unloaded_meshes.push_back(chunk_coord);
 
@@ -426,6 +446,9 @@ void ChunkManager::set_config(const StreamingConfig& new_config) {
         }
         metrics.worker_count = new_config.worker_count;
     }
+    if (!new_config.enable_mesh_buffer_reuse) {
+        clear_recycled_mesh_buffers();
+    }
     config = new_config;
 }
 
@@ -452,6 +475,77 @@ void ChunkManager::reset_cumulative_metrics() noexcept {
     metrics.total_generation_time_us = 0.0;
     metrics.total_mesh_time_us = 0.0;
     metrics.total_cpu_build_time_us = 0.0;
+    metrics.mesh_buffers_reused = 0;
+    metrics.mesh_buffers_allocated_fresh = 0;
+    metrics.mesh_buffers_recycled = 0;
+    metrics.mesh_buffers_evicted_from_pool = 0;
+}
+
+void ChunkManager::clear_recycled_mesh_buffers() noexcept {
+    recycled_mesh_buffers.clear();
+    recycled_mesh_buffers.shrink_to_fit();
+}
+
+MeshData ChunkManager::acquire_mesh_buffer() {
+    if (config.enable_mesh_buffer_reuse && !recycled_mesh_buffers.empty()) {
+        MeshData buf = std::move(recycled_mesh_buffers.back());
+        recycled_mesh_buffers.pop_back();
+        buf.clear();
+        metrics.mesh_buffers_reused++;
+        return buf;
+    }
+    metrics.mesh_buffers_allocated_fresh++;
+    MeshData buf;
+    if (config.enable_mesh_buffer_reuse) {
+        // Pre-reserve a baseline capacity to minimize initial micro-reallocations
+        buf.vertices.reserve(1024);
+        buf.indices.reserve(1536);
+    }
+    return buf;
+}
+
+void ChunkManager::recycle_mesh_buffer(MeshData mesh) {
+    if (!config.enable_mesh_buffer_reuse) {
+        return;
+    }
+    if (recycled_mesh_buffers.size() < config.max_recycled_mesh_buffers) {
+        mesh.clear();
+        recycled_mesh_buffers.push_back(std::move(mesh));
+        metrics.mesh_buffers_recycled++;
+    } else {
+        metrics.mesh_buffers_evicted_from_pool++;
+    }
+}
+
+ChunkManagerMemoryStats ChunkManager::get_memory_stats() const {
+    ChunkManagerMemoryStats stats;
+    stats.resident_chunk_count = loaded_chunks.size();
+    stats.raw_chunk_payload_bytes = stats.resident_chunk_count * sizeof(Chunk);
+    stats.mesh_count = meshes.size();
+
+    for (const auto& [coord, mesh] : meshes) {
+        stats.total_mesh_logical_bytes += mesh.total_logical_bytes();
+        stats.total_mesh_capacity_bytes += mesh.total_capacity_bytes();
+    }
+
+    stats.recycled_mesh_buffer_count = recycled_mesh_buffers.size();
+    for (const auto& mesh : recycled_mesh_buffers) {
+        stats.recycled_mesh_capacity_bytes += mesh.total_capacity_bytes();
+    }
+
+    // std::map node in 64-bit MSVC: ChunkCoord (12B) + Chunk (65536B) + 3 pointers (24B) + color/flags (8B) ~ 65584B
+    stats.estimated_world_grid_node_bytes = stats.resident_chunk_count * (sizeof(Chunk) + 48);
+    stats.estimated_total_logical_bytes = stats.raw_chunk_payload_bytes + stats.total_mesh_logical_bytes;
+
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS_EX pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), sizeof(pmc))) {
+        stats.process_working_set_bytes = static_cast<size_t>(pmc.WorkingSetSize);
+        stats.process_private_bytes = static_cast<size_t>(pmc.PrivateUsage);
+    }
+#endif
+
+    return stats;
 }
 
 void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation) {
@@ -466,7 +560,8 @@ void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation) {
         need_generation,
         mesher_type,
         std::move(snap),
-        generator
+        generator,
+        acquire_mesh_buffer()
     };
 
     metrics.jobs_submitted++;
@@ -503,15 +598,20 @@ void ChunkManager::execute_task_sync(ChunkBuildTask task) {
     }
 
     auto t2 = std::chrono::high_resolution_clock::now();
+    task.mesh.clear();
     if (task.mesher_type == MesherType::Naive) {
-        mesh_chunk(task.snapshot, task.coord, res.mesh);
+        mesh_chunk(task.snapshot, task.coord, task.mesh);
     } else {
-        greedy_mesh_chunk(task.snapshot, task.coord, res.mesh);
+        greedy_mesh_chunk(task.snapshot, task.coord, task.mesh);
     }
     auto t3 = std::chrono::high_resolution_clock::now();
     res.mesh_time_us = std::chrono::duration<double, std::micro>(t3 - t2).count();
 
-    res.chunk = std::move(task.snapshot.center_chunk);
+    res.mesh = std::move(task.mesh);
+
+    if (task.need_generation) {
+        res.chunk = std::move(task.snapshot.center_chunk);
+    }
 
     {
         std::lock_guard<std::mutex> lock(completed_mutex);

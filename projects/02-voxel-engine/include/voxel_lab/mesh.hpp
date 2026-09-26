@@ -42,6 +42,8 @@ struct MeshVertex {
     }
 };
 
+static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be exactly 24 bytes (3 floats pos + 3 floats normal)");
+
 struct MeshData {
     std::vector<MeshVertex> vertices;
     std::vector<uint32_t> indices;
@@ -51,9 +53,22 @@ struct MeshData {
     size_t face_count() const noexcept { return indices.size() / 6; }
     size_t quad_count() const noexcept { return face_count(); }
 
+    size_t vertex_bytes() const noexcept { return vertices.size() * sizeof(MeshVertex); }
+    size_t index_bytes() const noexcept { return indices.size() * sizeof(uint32_t); }
+    size_t total_logical_bytes() const noexcept { return vertex_bytes() + index_bytes(); }
+
+    size_t vertex_capacity_bytes() const noexcept { return vertices.capacity() * sizeof(MeshVertex); }
+    size_t index_capacity_bytes() const noexcept { return indices.capacity() * sizeof(uint32_t); }
+    size_t total_capacity_bytes() const noexcept { return vertex_capacity_bytes() + index_capacity_bytes(); }
+
     void clear() noexcept {
         vertices.clear();
         indices.clear();
+    }
+
+    void shrink_to_fit() {
+        vertices.shrink_to_fit();
+        indices.shrink_to_fit();
     }
 
     bool operator==(const MeshData& other) const noexcept {

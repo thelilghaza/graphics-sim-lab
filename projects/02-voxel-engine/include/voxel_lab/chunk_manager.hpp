@@ -24,6 +24,10 @@ struct StreamingConfig {
     int load_radius{2};      // Chebyshev distance in chunk coordinates for loading
     int unload_radius{3};    // Chebyshev distance in chunk coordinates for unloading (unload_radius >= load_radius)
     size_t worker_count{0};  // Number of worker threads (0 = synchronous execution, >=1 = multithreaded worker pool)
+
+    // Milestone 9: Memory & buffer reuse configuration
+    bool enable_mesh_buffer_reuse{true};   // When true, recycles and reuses MeshData vector capacity
+    size_t max_recycled_mesh_buffers{128}; // Upper bound on retained idle mesh buffers in pool
 };
 
 struct StreamingMetrics {
@@ -51,6 +55,26 @@ struct StreamingMetrics {
     double total_mesh_time_us{0.0};
     double total_cpu_build_time_us{0.0};
     double last_streaming_update_time_us{0.0};
+
+    // Milestone 9: Memory & buffer reuse metrics
+    size_t mesh_buffers_reused{0};
+    size_t mesh_buffers_allocated_fresh{0};
+    size_t mesh_buffers_recycled{0};
+    size_t mesh_buffers_evicted_from_pool{0};
+};
+
+struct ChunkManagerMemoryStats {
+    size_t resident_chunk_count{0};
+    size_t raw_chunk_payload_bytes{0};       // count * 65536
+    size_t mesh_count{0};
+    size_t total_mesh_logical_bytes{0};       // vertex size (24B) + index size (4B)
+    size_t total_mesh_capacity_bytes{0};      // vertex cap (24B) + index cap (4B)
+    size_t recycled_mesh_buffer_count{0};
+    size_t recycled_mesh_capacity_bytes{0};
+    size_t estimated_world_grid_node_bytes{0}; // count * 65584
+    size_t estimated_total_logical_bytes{0};
+    size_t process_working_set_bytes{0};      // OS resident memory
+    size_t process_private_bytes{0};          // OS private commit
 };
 
 using ChunkGenerator = std::function<void(WorldAccessor& world, const ChunkCoord& coord)>;
@@ -65,6 +89,7 @@ struct ChunkBuildTask {
     MesherType mesher_type{MesherType::Naive};
     ChunkNeighborhoodSnapshot snapshot;
     ChunkGenerator generator;
+    MeshData mesh; // Milestone 9: reusable mesh buffer passed into task
 };
 
 struct ChunkBuildResult {
@@ -139,6 +164,11 @@ public:
     bool has_camera_chunk() const noexcept { return has_cam_chunk; }
     const ChunkCoord& get_camera_chunk() const noexcept { return current_cam_chunk; }
 
+    // Milestone 9: Memory queries & buffer reuse control
+    ChunkManagerMemoryStats get_memory_stats() const;
+    size_t get_recycled_mesh_buffer_count() const noexcept { return recycled_mesh_buffers.size(); }
+    void clear_recycled_mesh_buffers() noexcept;
+
     // Incremental GPU sync lists from last update
     const std::vector<ChunkCoord>& get_recently_updated_mesh_coords() const noexcept { return recently_updated_meshes; }
     const std::vector<ChunkCoord>& get_recently_unloaded_mesh_coords() const noexcept { return recently_unloaded_meshes; }
@@ -150,6 +180,10 @@ private:
     void remesh_chunk_sync(const ChunkCoord& coord);
     void recalculate_aggregate_mesh_metrics();
 
+    // Milestone 9: Buffer reuse helpers
+    MeshData acquire_mesh_buffer();
+    void recycle_mesh_buffer(MeshData mesh);
+
     StreamingConfig config;
     MesherType mesher_type{MesherType::Naive};
     ChunkGenerator generator;
@@ -158,6 +192,7 @@ private:
     std::set<ChunkCoord> desired_chunks;
     std::set<ChunkCoord> loaded_chunks;
     std::map<ChunkCoord, MeshData> meshes;
+    std::vector<MeshData> recycled_mesh_buffers; // Milestone 9: Pool of retained reusable MeshData buffers
     std::map<ChunkCoord, uint64_t> chunk_versions;
     uint64_t next_version{0};
 

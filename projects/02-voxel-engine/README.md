@@ -4,11 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 8 Complete
+## Current Status: Milestone 9 Complete
 
-Milestones 1–7 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, greedy meshing with quad reduction, and dynamic single-threaded chunk management with distance-based streaming and hysteresis.
+Milestones 1–8 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, greedy meshing with quad reduction, dynamic single-threaded chunk management with distance-based streaming and hysteresis, and multithreaded chunk generation with isolated read-only neighborhood snapshots.
 
-Milestone 8 parallelizes chunk generation and CPU surface mesh extraction using a fixed-size C++20 worker thread pool (`ThreadPool`), race-free read-only neighborhood snapshots (`ChunkNeighborhoodSnapshot`), version-based stale job protection, and decoupled main-thread OpenGL integration. OpenGL calls remain strictly isolated to the main thread. A 13-test concurrency suite (`test_multithreading`) validates clean shutdown, worker distribution, race rejection, boundary consistency, and determinism. Multi-core scaling benchmarks (`bench_multithreading`) demonstrate up to 5.35x speedup across 1, 2, 4, and 8 worker threads.
+Milestone 9 optimizes memory consumption, eliminates dynamic allocation churn, and establishes buffer reuse across the CPU voxel pipeline. Reusable `MeshData` buffers circulate through a bounded manager-owned pool, transferring vector capacity into worker build tasks to eliminate repeated heap reallocations during streaming. A comprehensive memory benchmark suite (`bench_memory`) measures logical data footprint vs OS process working set, and a 12-test suite (`test_memory_optimization`) verifies exact output preservation, absence of buffer data leakage, and clean state across continuous load/unload cycles.
 
 ---
 
@@ -90,6 +90,15 @@ Milestone 8 parallelizes chunk generation and CPU surface mesh extraction using 
 - **Automated Concurrency Test Suite**: Dedicated `test_multithreading` verifying thread pool lifecycle, job distribution across workers, result completeness, stale result rejection, duplicate request handling, deterministic generation, deterministic meshing, boundary consistency, negative coordinate streaming, rapid load/unload stress, clean shutdown with pending work, and GPU thread isolation.
 - **Multi-Core Scaling Benchmark**: `bench_multithreading` evaluating Workloads A through E across 1, 2, 4, and 8 worker threads, achieving up to $5.35\times$ parallel speedup.
 
+### Milestone 9 — Memory Footprint Optimization & Buffer Reuse
+- **Zero-Allocation Buffer Recycling**: Manager-owned bounded pool of reusable `MeshData` instances (`recycled_mesh_buffers`). As chunks unload or remesh, existing vector capacity is preserved via `clear()` rather than released to the heap, and transferred into new `ChunkBuildTask` objects.
+- **Worker Exclusive Ownership**: Workers write into pre-allocated `MeshData` buffers with 100% thread isolation. Meshing executes with zero dynamic heap allocations or vector reallocations once steady-state capacity is reached.
+- **Stale & Evicted Mesh Reclamation**: Outdated build results discarded by version protection are returned to the recycle pool instead of being deallocated.
+- **Selective Chunk Copying**: Build results only allocate and move 64 KB `Chunk` structures when generation actually occurred (`need_generation == true`), eliminating redundant 64 KB memory copies during neighbor remesh passes.
+- **Memory Profiling & Metrics**: Live memory tracking via `get_memory_stats()` reporting raw chunk payload, mesh logical bytes, vector capacity overhead, pool size, and OS process working set via Windows `GetProcessMemoryInfo`.
+- **12-Test Verification Suite**: Dedicated `test_memory_optimization` verifying structural invariants, bitwise exact output after buffer reuse, absence of cross-chunk data leakage, clean repeated load/unload state, and safe shutdown with active pools.
+- **Comprehensive Memory Benchmark**: `bench_memory` measuring logical vs process memory across 1, 27, 125, and 150 resident chunks, 10 continuous boundary crossings, and 50 remesh cycles. Eliminates 99% of dynamic allocation churn during continuous streaming.
+
 ---
 
 ## Planned Milestone Roadmap
@@ -102,20 +111,17 @@ Milestone 8 parallelizes chunk generation and CPU surface mesh extraction using 
 - [x] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
 - [x] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
 - [x] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
-- [ ] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
+- [x] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
 - [ ] **Milestone 10**: Level of Detail (LOD) & Large-World Scale Experiments
 
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
-- **Parallel CPU Work Only**: Chunk generation and CPU surface meshing are parallelized. OpenGL calls, context management, and GPU buffer uploads remain strictly isolated to the main thread.
-- **Main-Thread Streaming Coordination**: Streaming decisions, hysteresis calculations, neighbor invalidation dispatch, and result integration remain coordinated by the main thread.
-- **No Background / Async GPU Uploads**: Graphics drivers and OpenGL contexts are not shared across threads; all GPU buffer creation occurs synchronously on the main thread.
+- **In-Memory Optimization Only**: Focus is entirely on reducing heap churn and vector reallocations in RAM. Disk persistence and compression are deferred to future milestones.
 - **No Level of Detail (LOD)**: Chunks stream at full $32^3$ resolution. Hierarchical LOD and distance-based downsampling are deferred to Milestone 10.
-- **No Memory Pooling**: Dynamic allocation of chunk snapshots and mesh vectors is unpooled; memory pooling is deferred to Milestone 9.
-- **No Advanced Work Stealing**: Fixed-size task queue with condition variable signaling is used without complex work-stealing schedulers.
+- **No GPU Memory Managers / VRAM Pooling**: OpenGL vertex buffers remain managed via standard `GLMesh` buffer uploads on the main thread.
+- **No Custom Memory Allocators**: Relies on standard C++20 capacity reuse patterns without third-party or platform-specific heap replacement.
 - **No Procedural Noise Libraries / Biomes**: Procedural terrain uses integer math; Perlin/Simplex noise, biomes, and infinite procedural simulation are non-goals.
-- **No Chunk Disk Persistence**: Dynamic chunk management operates entirely in-memory.
 - **Naive Mesher Retained**: The naive exposed-face mesher remains fully supported as the correctness baseline and comparison reference.
 - **No Complex Gameplay Engine**: Audio, scripting, physics solvers, and ECS systems are not created here.
 
@@ -133,6 +139,9 @@ ctest --preset default --output-on-failure
 cmake --preset release
 cmake --build --preset release
 ctest --preset release --output-on-failure
+
+# Memory Footprint & Buffer Reuse Benchmark
+./build/release/projects/02-voxel-engine/bench_memory.exe
 
 # Multithreading Scaling Benchmark
 ./build/release/projects/02-voxel-engine/bench_multithreading.exe

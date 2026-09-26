@@ -1,0 +1,51 @@
+========================================================================================================================
+ PROJECT 02 — VOXEL ENGINE: MILESTONE 9 MEMORY FOOTPRINT & BUFFER REUSE BENCHMARK REPORT
+========================================================================================================================
+
+Environment & Configuration:
+  Build Configuration: Release (/O2, NDEBUG)
+  Compiler:            MSVC 1951
+  Timing Source:       std::chrono::high_resolution_clock
+  Memory Measurement:  GetProcessMemoryInfo (WorkingSetSize / PrivateUsage)
+
+Structural Sizes (Exact Compiler sizeof):
+  sizeof(Voxel):                       2 bytes
+  sizeof(Chunk):                       65536 bytes (32^3 * 2 bytes = 65,536 bytes)
+  sizeof(MeshVertex):                  24 bytes (3 floats pos + 3 floats normal)
+  sizeof(uint32_t index):              4 bytes
+  Quad Memory Footprint:               120 bytes (4 vertices * 24B = 96B + 6 indices * 4B = 24B)
+  sizeof(ChunkBuildTask):              78016 bytes
+  sizeof(ChunkBuildResult):            65640 bytes
+  sizeof(ChunkNeighborhoodSnapshot):   77872 bytes
+  sizeof(WorldGrid):                   24 bytes
+
+Memory Benchmark Results Summary (Baseline vs Optimized):
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Workload                          Mesher  Reuse      Res    Raw Chk KB  Mesh Log KB  Mesh Cap KB Recycle KBAlloc Fresh     Reused   Proc WS MB     Time ms
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Workload A: 1 Chunk               Naive   DISABLED   1            64.0        263.4        355.6        0.0         20          0          5.4        1.14
+Workload A: 1 Chunk               Naive   ENABLED    1            64.0        263.4        341.7        0.0          0         20          5.3        0.79
+Workload A: 1 Chunk               Greedy  DISABLED   1            64.0         78.3        105.4        0.0         20          0          5.1        2.46
+Workload A: 1 Chunk               Greedy  ENABLED    1            64.0         78.3        101.2        0.0          0         20          5.1        2.44
+Workload B: 27 Chunks (r=1)       Naive   DISABLED   27         1728.0       4725.0       6045.3        0.0        135          0         20.5       93.29
+Workload B: 27 Chunks (r=1)       Naive   ENABLED    27         1728.0       4725.0       6629.8    30795.5        135          0         51.9       87.53
+Workload B: 27 Chunks (r=1)       Greedy  DISABLED   27         1728.0        855.6       1039.9        0.0        135          0         27.0      215.24
+Workload B: 27 Chunks (r=1)       Greedy  ENABLED    27         1728.0        855.6       1417.5     6108.8        135          0         29.2      255.69
+Workload C: 125 Chunks (r=2)      Naive   DISABLED   125        8000.0      13458.8      17675.2        0.0        725          0        168.9      387.78
+Workload C: 125 Chunks (r=2)      Naive   ENABLED    125        8000.0      13458.8      19534.0    26602.9        725          0         97.8      394.79
+Workload C: 125 Chunks (r=2)      Greedy  DISABLED   125        8000.0       2359.3       2662.2        0.0        725          0         60.2      817.89
+Workload C: 125 Chunks (r=2)      Greedy  ENABLED    125        8000.0       2359.3       5497.5     5478.8        725          0         71.1      808.79
+Workload D: 150 Chunks (Hysteresis)Naive   DISABLED   150        9600.0      15369.4      20401.5        0.0        855          0        172.6       61.87
+Workload D: 150 Chunks (Hysteresis)Naive   ENABLED    150        9600.0      15369.4      27526.9    33400.0        727        128        188.3       66.41
+Workload D: 150 Chunks (Hysteresis)Greedy  DISABLED   150        9600.0       2827.7       3217.3        0.0        855          0        104.3      146.63
+Workload D: 150 Chunks (Hysteresis)Greedy  ENABLED    150        9600.0       2827.7       7245.0     5088.8        727        128        105.1      138.84
+Workload E: 10 Crossings (Churn)  Naive   DISABLED   150        9600.0      15298.1      20559.5        0.0       2250          0        170.8      754.93
+Workload E: 10 Crossings (Churn)  Naive   ENABLED    150        9600.0      15298.1      51043.0    46797.0        952       1298        174.0      742.21
+Workload E: 10 Crossings (Churn)  Greedy  DISABLED   150        9600.0       2826.6       3279.5        0.0       2250          0         97.5     1590.56
+Workload E: 10 Crossings (Churn)  Greedy  ENABLED    150        9600.0       2826.6       9596.2     7170.0        952       1298         96.6     1603.82
+Workload F: 50 Remesh Cycles      Naive   DISABLED   1            64.0        263.4        355.6        0.0        100          0         10.5      136.43
+Workload F: 50 Remesh Cycles      Naive   ENABLED    1            64.0        263.4        341.7      101.2          1         99         11.0      134.24
+Workload F: 50 Remesh Cycles      Greedy  DISABLED   1            64.0         78.3        105.4        0.0        100          0         11.0      135.98
+Workload F: 50 Remesh Cycles      Greedy  ENABLED    1            64.0         78.3        101.2      341.7          1         99         11.1      135.01
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+

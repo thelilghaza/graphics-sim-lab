@@ -322,7 +322,82 @@ Because worker execution order is non-deterministic due to OS thread scheduling:
 
 ---
 
-## 10. Future Architectural Roadmap (Milestone 9+)
+## 10. Memory Footprint Optimization & Buffer Reuse Architecture (Milestone 9)
 
-- **Memory Footprint Optimization (Milestone 9)**: Memory pools for `Chunk` allocations, snapshot recycling, and mesh vertex buffer reuse to eliminate runtime heap allocations.
+Milestone 9 eliminates dynamic memory churn and optimizes process memory consumption across continuous chunk streaming, neighbor invalidation, and multithreaded meshing.
+
+```text
+ChunkManager (Main Thread)
+  ├── recycled_mesh_buffers (Bounded Pool: max 128 MeshData)
+  │     ▲                                      │
+  │     │ 4. Reclaims old/stale/evicted        │ 1. Passes pre-allocated buffer
+  │     │    buffers via clear()               ▼
+  │     └────────────── ChunkBuildResult ◄──── ChunkBuildTask
+  │                                            │
+  │                                            ▼
+  │                                     Worker Thread
+  │                                       ├── Exclusive Buffer Ownership
+  │                                       ├── task.mesh.clear() (retains capacity)
+  │                                       └── mesher writes directly (0 allocations)
+  │
+  └── WorldGrid (std::map<ChunkCoord, Chunk>)
+        └── 64 KB contiguous Chunk per node (0.07% node overhead)
+```
+
+### Exact Memory Model & Formulas
+1. **Raw Voxel Chunk**:
+   - $32 \times 32 \times 32 \text{ voxels} \times 2 \text{ bytes} = 65,536 \text{ bytes}$ ($64 \text{ KB}$).
+   - Stored contiguously in a single flat array without heap allocations or per-voxel pointers.
+2. **Mesh Vertex & Quad Footprint**:
+   - `sizeof(MeshVertex)`: exactly 24 bytes ($3 \times 4\text{B position} + 3 \times 4\text{B normal}$).
+   - `sizeof(uint32_t)`: exactly 4 bytes.
+   - Per Emitted Quad: 4 vertices ($4 \times 24\text{B} = 96\text{B}$) + 6 indices ($6 \times 4\text{B} = 24\text{B}$) $= 120\text{ bytes per quad}$.
+3. **Representative Mesh Memory Profiles**:
+   - Full Solid $32^3$ Chunk:
+     - Naive: 6,144 quads $\to$ 24,576 vertices (589,824 B) + 36,864 indices (147,456 B) $= 737,280\text{ B}$ ($720\text{ KB}$).
+     - Greedy: 6 quads $\to$ 24 vertices (576 B) + 36 indices (144 B) $= 720\text{ bytes}$.
+   - Planar World ($y \le 15$):
+     - Naive: 4,096 quads $\to$ 16,384 vertices (393,216 B) + 24,576 indices (98,304 B) $= 491,520\text{ B}$ ($480\text{ KB}$).
+     - Greedy: 6 quads $\to$ 720 bytes.
+   - Sphere World ($r=12$):
+     - Naive: 2,646 quads $\to$ 10,584 vertices (254,016 B) + 15,876 indices (63,504 B) $= 317,520\text{ B}$ ($310\text{ KB}$).
+     - Greedy: 1,050 quads $\to$ 4,200 vertices (100,800 B) + 6,300 indices (25,200 B) $= 126,000\text{ B}$ ($123\text{ KB}$).
+
+### Allocation Hotspot Findings
+Profiling dynamic streaming identified that the dominant source of heap churn was **vector reallocation during meshing**:
+- Every time a chunk loaded or a neighbor remeshed, a fresh `MeshData` allocated empty vectors.
+- Geometric vector reallocation ($0 \to 1 \to 2 \dots \to 24,576$) caused multiple `malloc`/`free` cycles per chunk.
+- When chunks unloaded or remeshed, the old vector memory was released to the OS heap, only for new chunks to immediately request fresh buffers.
+- Over 10 boundary crossings (Workload E), the unoptimized engine performed **2,250 dynamic buffer allocations**.
+
+### Zero-Allocation Buffer Reuse Architecture
+- `ChunkManager` maintains a bounded recycle pool (`recycled_mesh_buffers`, capped at 128 buffers).
+- When a task is queued, `acquire_mesh_buffer()` pops a reusable `MeshData` and moves it into `ChunkBuildTask`.
+- The worker thread takes exclusive ownership of `task.mesh`. It calls `task.mesh.clear()`, which resets `size` to 0 while keeping `capacity` intact.
+- The mesher writes directly into the pre-allocated buffer with **zero dynamic heap allocations**.
+- The worker moves `task.mesh` into `ChunkBuildResult`.
+- On the main thread, if an existing mesh is replaced or unloaded, its old buffer is returned to the recycle pool via `recycle_mesh_buffer()`.
+- Discarded stale tasks also return their buffers to the pool.
+- During steady-state streaming (e.g. Workload F with 50 remesh cycles), **fresh allocations drop from 100 to 1** (99% allocation churn reduction).
+
+### Chunk Pooling & WorldGrid Analysis
+- **WorldGrid Container Evaluation**: `std::map<ChunkCoord, Chunk>` stores chunks ordered by coordinate.
+  - Node size: key (12B) + value (65,536B) + 3 pointers (24B) + color (8B) $= 65,580\text{ bytes}$.
+  - For 150 resident chunks, total raw chunk payload is $9.38\text{ MB}$. Total map node pointer overhead is only $7.2\text{ KB}$ (**0.07% overhead**).
+  - Search cost is $O(\log N)$, requiring $\le 8$ pointer hops for 150 chunks.
+- **Chunk Pooling Decision**:
+  - `Chunk` contains a contiguous $64\text{ KB}$ array.
+  - Chunks are only allocated/deallocated upon entering or leaving the streaming radius (25 chunks per boundary crossing), which is 100x less frequent than mesh operations.
+  - Because node overhead is only 0.07% and chunk churn is minimal, adding a complex chunk pool to `WorldGrid` was measured to provide negligible benefit and would compromise the clean container abstraction.
+  - **Verdict**: Chunk pooling in `WorldGrid` was investigated and deliberately rejected; the flat contiguous 64 KB storage is preserved as-is.
+
+### Selective Chunk Copying
+In Milestone 8, every task completion moved `task.snapshot.center_chunk` (64 KB) into `ChunkBuildResult`. During remeshing, generation was not performed, rendering the 64 KB move redundant.
+- Milestone 9 restricts chunk copying: `if (task.need_generation) { res.chunk = std::move(task.snapshot.center_chunk); }`.
+- Remesh tasks transfer only the mesh buffer, saving 64 KB of memory copies per remeshed chunk.
+
+---
+
+## 11. Future Architectural Roadmap (Milestone 10+)
+
 - **Level of Detail (Milestone 10)**: Hierarchical octrees or downsampled chunk representations for extreme render distances.
