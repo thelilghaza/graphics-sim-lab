@@ -8,7 +8,7 @@ This document details the architectural design, technical objectives, data layou
 
 Modern CPU architectures feature deep memory hierarchies (L1, L2, L3 caches), SIMD vector execution units (AVX2, SSE4.2, NEON), and multi-core execution pipelines. High-level object-oriented programming abstractions frequently obscure the physical reality of hardware execution:
 
-- Pointer-heavy object graphs cause L1/L2 cache misses.
+- Pointer-heavy object graphs increase cache miss frequency.
 - Array-of-Structures (AoS) data layouts prevent auto-vectorization and waste cache-line bandwidth.
 - Mutex-based thread synchronization introduces thread context switches and lock contention spikes.
 - Dynamic heap allocation churn (`malloc`/`free`) causes allocator fragmentation and locks heap mutexes.

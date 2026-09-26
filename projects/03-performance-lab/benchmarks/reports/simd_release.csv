@@ -1,0 +1,2 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"simd_vectorization","ray_box_8_avx2","Release","MSVC 1951","x86_64","Windows",5,100,186.0130,177.0000,22.4417,175.6000,290.5000,2150387338.52,

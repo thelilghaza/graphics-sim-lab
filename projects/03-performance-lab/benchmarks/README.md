@@ -42,10 +42,10 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 - **Workload C**: Contiguous Array Traversal (500,000 uint64 elements = 4 MB data).
 - **Workload D**: Deterministic Scalar Array Transformation (250,000 float elements).
 
-### Milestone 2: Cache Locality & Data Layout (`bench_cache_locality`)
-- **Suite 1 (Sequential Traversal)**: Compares AoS (Array of Structures), SoA (Structure of Arrays), and AoSoA (Array of Structures of Arrays, tile width 16) across 100,000 logical records (3.2 MB logical footprint). Evaluates $(\text{pos} \cdot \text{vel}) \times \text{mass}$ dot product kernel.
-- **Suite 2 (Constant-Access Stride)**: Evaluates strided accesses (strides 1, 2, 4, 8, 16, 32, 64, 128, 256) over a contiguous float array. Fixed access count of 100,000 elements ensures identical operation counts across all strides. Stride 16 (64 bytes) represents single cache-line spacing.
-- **Suite 3 (Working-Set Scaling)**: Evaluates single-pass traversal over working sets spanning 15 orders of magnitude (4 KiB to 64 MiB), measuring memory bandwidth as datasets scale from L1/L2 cache into DRAM.
+### Milestone 3: SIMD Vectorization & Intrinsic Acceleration (`bench_simd_vectorization`)
+- **Kernel A (Vector Fused Arithmetic)**: Evaluates $\text{sum} += a[i] \cdot b[i] + c[i]$ over 16K, 1M, and 16M float arrays across Scalar Ref (`#pragma loop(no_vector)`), Compiler Opt (`/O2`), Explicit SSE, and Explicit AVX2.
+- **Kernel B (AXPY Vector Transform)**: Evaluates $y[i] = a \cdot x[i] + y[i]$ over 16K, 1M, and 16M float arrays across Scalar Ref, Compiler Opt, Explicit SSE, and Explicit AVX2. Measures memory bandwidth and throughput.
+- **Kernel C (Batch Ray-AABB Geometry)**: Evaluates 4-wide and 8-wide packet Ray-AABB slab intersection testing across 50,000 ray packets (200,000 rays).
 
 ---
 
@@ -57,3 +57,4 @@ Benchmark execution text logs and CSV reports are saved to:
 Generated reports:
 - `harness_validation_release.csv` / `harness_validation_debug.csv`
 - `cache_locality_release.csv` / `cache_locality_debug.csv`
+- `simd_release.csv` / `simd_debug.csv`

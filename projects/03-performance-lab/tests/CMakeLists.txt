@@ -11,3 +11,9 @@ target_link_libraries(test_cache_locality PRIVATE performance_lab)
 target_set_lab_warnings(test_cache_locality)
 
 add_test(NAME test_cache_locality COMMAND test_cache_locality)
+
+add_executable(test_simd test_simd.cpp)
+target_link_libraries(test_simd PRIVATE performance_lab)
+target_set_lab_warnings(test_simd)
+
+add_test(NAME test_simd COMMAND test_simd)

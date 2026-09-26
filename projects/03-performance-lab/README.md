@@ -4,9 +4,9 @@ A hardware-aware micro-benchmarking laboratory dedicated to CPU cache locality o
 
 ---
 
-### Current Status: Milestone 2 Complete
+### Current Status: Milestone 3 Complete
 
-Milestone 2 implements the Cache Locality & Data Layout benchmark suite (`bench_cache_locality`) and unit test suite (`test_cache_locality`). It empirically examines AoS vs SoA vs AoSoA data layout performance, constant-access strided traversal (strides 1 to 256), and working-set size scaling (4 KiB to 64 MiB).
+Milestone 3 implements the SIMD Vectorization & Intrinsic Acceleration benchmark suite (`bench_simd_vectorization`) and unit test suite (`test_simd`). It empirically compares portable scalar reference, compiler auto-vectorized C++, explicit x86 SSE2/SSE4.2 SIMD, explicit AVX2 SIMD, and portable ARM NEON structures across vector arithmetic, vector transform, and packet geometry workloads.
 
 ---
 
@@ -30,10 +30,40 @@ Milestone 2 implements the Cache Locality & Data Layout benchmark suite (`bench_
   - **SoA (Structure of Arrays)**: `RecordSoA` storing fields in 8 separate contiguous `std::vector` arrays.
   - **AoSoA (Array of Structures of Arrays)**: `RecordAoSoA<16>` tiling records into contiguous 16-element sub-arrays per tile.
 - **Deterministic Checksum & Equivalence Verification**: All three layouts evaluate identical mathematical work ($(\text{pos} \cdot \text{vel}) \times \text{mass}$) and verify identical floating-point checksums prior to benchmarking.
-- **Sequential Traversal Benchmark (`aos_sequential`, `soa_sequential`, `aosoa_sequential_tile16`)**: Evaluates 100,000 records (3.2 MB logical footprint). In Release, SoA and AoSoA demonstrate superior memory throughput over AoS due to contiguous field streaming.
+- **Sequential Traversal Benchmark (`aos_sequential`, `soa_sequential`, `aosoa_sequential_tile16`)**: Evaluates 100,000 records (3.2 MB logical footprint). Working-set and throughput observations track data layout performance.
 - **Constant-Access Stride Benchmark (`stride_1` to `stride_256`)**: Evaluates strided accesses over a contiguous float array. Fixed access count of 100,000 elements ensures identical operation counts across all strides. Stride 16 (64 bytes) marks the boundary of single cache-line stride spacing.
-- **Working-Set Scaling Benchmark (`workingset_4KiB` to `workingset_64MiB`)**: Evaluates working-set memory scaling across 15 orders of magnitude, tracking throughput and bandwidth as working sets expand from L1/L2 cache fits into DRAM.
+- **Working-Set Scaling Benchmark (`workingset_4KiB` to `workingset_64MiB`)**: Evaluates memory traversal throughput across dataset sizes spanning 15 orders of magnitude (4 KiB to 64 MiB), tracking observed throughput and bandwidth as memory footprint increases.
 - **Automated CTest Suite (`test_cache_locality`)**: 5 unit test cases verifying AoS/SoA/AoSoA equivalence, deterministic initialization, stride array bounds safety, working-set calculation, and edge cases.
+
+---
+
+## Implemented Milestone 3 Behavior
+
+- **SIMD Capability Layer (`simd_caps.hpp`)**:
+  - Auto-detects runtime CPU features (AVX2, SSE4.2, SSE2) and compile-time architecture target (x86_64, ARM64).
+  - Portable NEON headers and fallback paths compiled behind architecture guards (`#if defined(__ARM_NEON)`).
+  - Safely gates intrinsic execution so hardware without AVX2 will not execute AVX2 instructions.
+- **Kernel A: Vector Fused Arithmetic (`simd_kernel_dot.hpp`)**:
+  - Computes $\text{sum} += a[i] \cdot b[i] + c[i]$ over 16K, 1M, and 16M float arrays.
+  - Compares Scalar Ref, Compiler Opt, SSE2/SSE4.2 (`_mm_loadu_ps`, `_mm_mul_ps`, `_mm_add_ps`), AVX2 (`_mm256_loadu_ps`, `_mm256_fmadd_ps` / `_mm256_mul_ps` + `_mm256_add_ps`), and NEON (`vld1q_f32`, `vmlaq_f32`).
+- **Kernel B: AXPY Vector Transform (`simd_kernel_axpy.hpp`)**:
+  - Computes $y[i] = a \cdot x[i] + y[i]$ over 16K, 1M, and 16M float arrays.
+  - Pre-allocated setup buffers passed outside timed region; reports logical bytes processed ($2 \times N \times \text{sizeof(float)}$).
+- **Kernel C: Batch Ray-AABB Intersection (`simd_kernel_ray_box.hpp`)**:
+  - 4-wide and 8-wide slab-style Ray-AABB intersection test processing 50,000 ray packets (200,000 rays).
+  - SSE variant processes 4 rays simultaneously using `_mm_min_ps`, `_mm_max_ps`, `_mm_movemask_ps`.
+  - AVX2 variant processes 8 rays simultaneously using `_mm256_min_ps`, `_mm256_max_ps`, `_mm256_movemask_ps`.
+- **Auto-Vectorization Control & Generated Code Evidence**:
+  - Scalar reference paths explicitly suppress MSVC auto-vectorization using `#pragma loop(no_vector)`.
+  - Normal optimized C++ loops (`/O2`) enable compiler vectorizer.
+  - Assembly inspection verified MSVC 19.51 generates auto-vectorized SIMD instructions for simple streaming loops while explicit intrinsics guarantee optimal SIMD register usage and FMA vectorization.
+- **Tail Handling & Alignment**:
+  - All SIMD implementations feature safe scalar remainder loops for array sizes not divisible by SIMD width (e.g. lengths 3, 7, 15, 17, 31, 33).
+  - Unaligned loads (`_mm_loadu_ps`, `_mm256_loadu_ps`) prevent alignment fault UB while operating cleanly on standard contiguous memory allocations.
+- **Numerical Tolerance Policy**:
+  - Floating-point reduction sums accumulate in different order across SIMD vector lanes.
+  - Unit tests enforce strict $10^{-4}$ tolerance for standard array sizes. Large multi-million float reductions use relative tolerance ($0.05$) accounting for single-precision IEEE 754 precision accumulation breakdown.
+- **Automated CTest Suite (`test_simd`)**: 4 unit test cases verifying ISA capability detection, Kernel A length & tail handling, Kernel B length & tail handling, and Kernel C ray-box hit/miss equivalence.
 
 ---
 
@@ -42,7 +72,7 @@ Milestone 2 implements the Cache Locality & Data Layout benchmark suite (`bench_
 - [x] **Phase 0**: Discovery, Technical Roadmap & Architecture Review
 - [x] **Milestone 1**: Micro-Benchmarking Harness & High-Precision Timing Infrastructure
 - [x] **Milestone 2**: Cache Locality & Data Layout Benchmarks (AoS vs SoA vs Stride Access)
-- [ ] **Milestone 3**: SIMD Vectorization & Intrinsic Acceleration (AVX2 / SSE4.2 Vector & Geometry Kernels)
+- [x] **Milestone 3**: SIMD Vectorization & Intrinsic Acceleration (AVX2 / SSE4.2 Vector & Geometry Kernels)
 - [ ] **Milestone 4**: Thread Contention & Lock-Free vs Mutex Synchronization Queues
 - [ ] **Milestone 5**: Memory Allocator Churn & Arena / Bump Allocator Benchmarks
 
@@ -50,8 +80,8 @@ Milestone 2 implements the Cache Locality & Data Layout benchmark suite (`bench_
 
 ## Scope Boundaries & Explicit Non-Goals
 
-- **No SIMD / Queue / Allocator Experiments Yet**: Milestone 2 focuses strictly on scalar cache locality and data layouts. Explicit SIMD intrinsics are intentionally deferred to Milestone 3.
-- **No Hardware Counter Claims**: Benchmark reports record empirical execution times, throughput, and bandwidth without claiming exact hardware L1/L2 cache miss counts.
+- **No Queue / Allocator Work Yet**: Milestone 3 focuses strictly on SIMD intrinsics and vectorization. Lock-free queues and memory allocators are deferred to Milestones 4 and 5.
+- **No Hardware Counter Claims**: Performance conclusions distinguish empirical timing and throughput metrics from hardware microarchitectural interpretations.
 - **No Shared Libraries in `libs/`**: All code remains strictly isolated in `projects/03-performance-lab/`.
 
 ---
@@ -68,6 +98,7 @@ cmake --build --preset default
 # Run test suite via CTest
 ctest --preset default --output-on-failure
 
-# Execute cache locality benchmark suite
+# Execute benchmark executables
 ./build/release/projects/03-performance-lab/bench_cache_locality.exe
+./build/release/projects/03-performance-lab/bench_simd_vectorization.exe
 ```
