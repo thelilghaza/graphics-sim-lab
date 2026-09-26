@@ -4,32 +4,24 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: In Architecture & Design Phase
+## Current Status: Milestone 1 Complete
 
-Project 02 is currently in its initial architecture, design, and roadmap specification phase. No voxel source implementation has been written yet.
-
-The project will establish a cache-friendly, memory-efficient 3D spatial voxel representation and meshing pipeline built from first principles.
+Milestone 1 introduces the compact 2-byte `Voxel` payload, contiguous $32^3$ (`32,768` voxel) `Chunk` storage architecture ($65,536$ bytes), 1D index mapping formula (`lx + ly * 32 + lz * 1024`), read/write/fill/clear storage API, and CTest unit test suite.
 
 ---
 
-## Core Technical Questions Investigated
-
-1. **Voxel Storage & Memory Representation**:
-   - How can 3D volumetric data be stored so that random access is $O(1)$, memory usage is predictable, and spatial iteration matches CPU cache lines?
-2. **Chunk Sizing & Locality**:
-   - What chunk dimensions ($8^3$, $16^3$, $32^3$, or $64^3$) optimize the balance between memory footprint, cache line utilization (L1/L2), boundary neighbor lookups, and meshing update latency?
-3. **World Coordinate Conversion**:
-   - How do world coordinates $(Wx, Wy, Wz)$ map deterministically to chunk coordinates $(CX, CY, CZ)$ and local voxel coordinates $(lx, ly, lz)$, specifically handling negative world space without division truncation bugs?
-4. **Surface Extraction & Meshing Algorithms**:
-   - What performance and quad-reduction benefits does greedy meshing provide over naive exposed-face culling, and how does meshing throughput scale across thread counts?
-5. **Data vs Renderer Separation**:
-   - How can voxel data structures and mesh extraction remain completely decoupled from rendering frameworks, allowing visualization backends to be swapped or benchmarked independently?
+## Implemented Behavior (Milestone 1)
+- **Compact Voxel Payload**: `Voxel` struct containing `uint8_t type_id` and `uint8_t flags` (`sizeof(Voxel) == 2` with `static_assert`).
+- **Contiguous Chunk Storage**: `Chunk` storing exactly $32 \times 32 \times 32 = 32,768$ voxels in a contiguous 64 KB array (`sizeof(Chunk) == 65536`) with zero heap indirection or per-voxel pointers.
+- **Index Arithmetic**: Local coordinate indexing via `index = lx + ly * 32 + lz * 1024` for $0 \le lx, ly, lz < 32$.
+- **Storage API**: `get_voxel`, `set_voxel`, `fill`, `clear`, `get_voxel_at_index`, `set_voxel_at_index`, and bounds validation (`in_bounds`).
+- **Unit Test Suite**: CTest targets `test_voxel` and `test_chunk` verifying size assertions, index mapping, read/write roundtrip, non-aliasing, fill/clear reset, and out-of-bounds safety.
 
 ---
 
 ## Planned Milestone Roadmap
 
-- [ ] **Milestone 1**: Compact Voxel Payload & Contiguous $32^3$ Chunk Storage Architecture
+- [x] **Milestone 1**: Compact Voxel Payload & Contiguous $32^3$ Chunk Storage Architecture
 - [ ] **Milestone 2**: World Coordinate Conversion System & Cross-Chunk Neighbor Access API
 - [ ] **Milestone 3**: Basic Voxel Editing API & Deterministic Test Worlds (Solid, Empty, Sphere, Plane)
 - [ ] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
@@ -49,5 +41,16 @@ The project will establish a cache-friendly, memory-efficient 3D spatial voxel r
 
 ---
 
-## Build & Test Plan
-Once implementation begins, Project 02 will be built via standard repository CMake presets (`default` and `release`) and verified using CTest suite targets in `projects/02-voxel-engine/tests/`.
+## Build & Test Instructions
+
+```bash
+# Debug Build
+cmake --preset default
+cmake --build --preset default
+ctest --preset default --output-on-failure
+
+# Release Build
+cmake --preset release
+cmake --build --preset release
+ctest --preset release --output-on-failure
+```

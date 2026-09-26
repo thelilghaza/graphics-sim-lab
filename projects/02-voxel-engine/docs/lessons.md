@@ -4,6 +4,21 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 1 Implementation Observations
+
+1. **Voxel Payload Size & Alignment**:
+   - Defining `Voxel` as two `uint8_t` members (`type_id` and `flags`) with default constructor guarantees `sizeof(Voxel) == 2` bytes and `std::is_trivially_copyable_v<Voxel> == true`.
+   - `static_assert(sizeof(Voxel) == 2)` ensures compiler padding never bloats chunk storage overhead.
+
+2. **Chunk Memory Allocation & Cache Line Contiguity**:
+   - Using `std::array<Voxel, 32768>` inside `Chunk` produces an exact $65,536$-byte ($64 \text{ KB}$) contiguous memory block without dynamic heap allocations or pointer overhead.
+   - Index arithmetic `lx + ly * 32 + lz * 1024` allows $O(1)$ coordinate lookup while iterating sequentially through memory along $X \to Y \to Z$ strides.
+
+3. **Dual Error-Handling Access Strategy**:
+   - `get_voxel(lx, ly, lz)` throws `std::out_of_range` for throwing callers, while `get_voxel(lx, ly, lz, out_voxel)` returns `bool` for non-throwing hot paths.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:
@@ -20,18 +35,6 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 4. **Baseline-First Meshing Strategy**:
    - Planned Naive Exposed-Face Culling in Milestone 4 before implementing Greedy Meshing in Milestone 6.
    - Follows the repository engineering principle: establish a clear correctness baseline and measure throughput before introducing advanced optimizations.
-
----
-
-## Experiments & Measurement Findings
-
-*(Will be populated with empirical data during implementation milestones)*
-
----
-
-## Problems & Failure Modes
-
-*(Will be populated as challenges arise during development)*
 
 ---
 
