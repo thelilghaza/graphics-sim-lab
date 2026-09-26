@@ -20,6 +20,7 @@ add_library(voxel_engine STATIC
   src/world_grid.cpp
   src/test_worlds.cpp
   src/naive_mesher.cpp
+  src/greedy_mesher.cpp
   src/camera.cpp
 )
 
@@ -36,6 +37,10 @@ target_set_lab_warnings(demo_voxel_editing)
 add_executable(bench_naive_mesher benchmarks/bench_naive_mesher.cpp)
 target_link_libraries(bench_naive_mesher PRIVATE voxel_engine)
 target_set_lab_warnings(bench_naive_mesher)
+
+add_executable(bench_greedy_mesher benchmarks/bench_greedy_mesher.cpp)
+target_link_libraries(bench_greedy_mesher PRIVATE voxel_engine)
+target_set_lab_warnings(bench_greedy_mesher)
 
 add_executable(voxel_viewer
   src/gl_loader.cpp

@@ -1,42 +1,76 @@
 #include "voxel_lab/scene_manager.hpp"
+#include "voxel_lab/greedy_mesher.hpp"
 #include "voxel_lab/naive_mesher.hpp"
 #include "voxel_lab/test_worlds.hpp"
 #include <iostream>
 
 namespace voxel_lab {
 
-SceneManager::SceneManager() {
-    // Default initial scene built upon first switch
-}
+namespace {
 
-bool SceneManager::switch_scene(int scene_index, Camera& camera) {
-    switch (scene_index) {
-        case 1:
-            build_solid_chunk_scene(camera);
-            current_scene_index = 1;
-            return true;
-        case 2:
-            build_plane_world_scene(camera);
-            current_scene_index = 2;
-            return true;
-        case 3:
-            build_cross_chunk_sphere_scene(camera);
-            current_scene_index = 3;
-            return true;
-        default:
-            std::cerr << "[SceneManager] Invalid scene index: " << scene_index << " (valid: 1, 2, 3)\n";
-            return false;
+MeshData mesh_for_chunk(MesherType mesher, const WorldAccessor& world, const ChunkCoord& coord) {
+    if (mesher == MesherType::Naive) {
+        return mesh_chunk(world, coord);
+    } else {
+        return greedy_mesh_chunk(world, coord);
     }
 }
 
-void SceneManager::build_solid_chunk_scene(Camera& camera) {
+} // anonymous namespace
+
+SceneManager::SceneManager() {
+    // Default initial state
+}
+
+bool SceneManager::switch_scene(int scene_index, Camera& camera) {
+    if (scene_index < 1 || scene_index > 3) {
+        std::cerr << "[SceneManager] Invalid scene index: " << scene_index << " (valid: 1, 2, 3)\n";
+        return false;
+    }
+    current_scene_index = scene_index;
+    rebuild_current_scene(true, &camera);
+    std::cout << "[SceneManager] Switched scene to: " << current_stats.name
+              << " | Mesher: [" << mesher_type_name(current_mesher) << "]"
+              << " | Faces/Quads: " << current_stats.face_count
+              << " | Vertices: " << current_stats.vertex_count << "\n";
+    return true;
+}
+
+void SceneManager::set_mesher(MesherType mesher) {
+    if (current_mesher == mesher) {
+        return;
+    }
+    current_mesher = mesher;
+    rebuild_current_scene(false, nullptr);
+    std::cout << "[SceneManager] Switched mesher to: [" << mesher_type_name(current_mesher) << "]"
+              << " | Scene: " << current_stats.name
+              << " | Faces/Quads: " << current_stats.face_count
+              << " | Vertices: " << current_stats.vertex_count << "\n";
+}
+
+void SceneManager::rebuild_current_scene(bool reset_camera, Camera* camera) {
+    switch (current_scene_index) {
+        case 1:
+            build_solid_chunk_scene(reset_camera, camera);
+            break;
+        case 2:
+            build_plane_world_scene(reset_camera, camera);
+            break;
+        case 3:
+            build_cross_chunk_sphere_scene(reset_camera, camera);
+            break;
+    }
+}
+
+void SceneManager::build_solid_chunk_scene(bool reset_camera, Camera* camera) {
     WorldGrid world;
     generate_solid_world(world, WorldCoord(0, 0, 0), WorldCoord(31, 31, 31), Voxel(1, 0));
 
-    MeshData mesh = mesh_chunk(world, ChunkCoord(0, 0, 0));
+    MeshData mesh = mesh_for_chunk(current_mesher, world, ChunkCoord(0, 0, 0));
     current_gl_mesh.upload(mesh);
 
     current_stats.name = "Scene 1: Solid Chunk (32^3)";
+    current_stats.mesher = current_mesher;
     current_stats.chunk_count = world.loaded_chunk_count();
     current_stats.solid_voxel_count = world.count_solid_voxels();
     current_stats.face_count = mesh.face_count();
@@ -44,17 +78,20 @@ void SceneManager::build_solid_chunk_scene(Camera& camera) {
     current_stats.index_count = mesh.index_count();
     current_stats.base_color = Vec3(0.75f, 0.78f, 0.82f); // Slate gray
 
-    camera.reset(Vec3(48.0f, 48.0f, 64.0f), -120.0f, -25.0f);
+    if (reset_camera && camera) {
+        camera->reset(Vec3(48.0f, 48.0f, 64.0f), -120.0f, -25.0f);
+    }
 }
 
-void SceneManager::build_plane_world_scene(Camera& camera) {
+void SceneManager::build_plane_world_scene(bool reset_camera, Camera* camera) {
     WorldGrid world;
     generate_plane_world(world, WorldCoord(0, 0, 0), WorldCoord(31, 31, 31), 15, PlaneAxis::Y, Voxel(3, 0));
 
-    MeshData mesh = mesh_chunk(world, ChunkCoord(0, 0, 0));
+    MeshData mesh = mesh_for_chunk(current_mesher, world, ChunkCoord(0, 0, 0));
     current_gl_mesh.upload(mesh);
 
     current_stats.name = "Scene 2: Planar World (y <= 15)";
+    current_stats.mesher = current_mesher;
     current_stats.chunk_count = world.loaded_chunk_count();
     current_stats.solid_voxel_count = world.count_solid_voxels();
     current_stats.face_count = mesh.face_count();
@@ -62,10 +99,12 @@ void SceneManager::build_plane_world_scene(Camera& camera) {
     current_stats.index_count = mesh.index_count();
     current_stats.base_color = Vec3(0.35f, 0.75f, 0.40f); // Terrain green
 
-    camera.reset(Vec3(48.0f, 36.0f, 64.0f), -120.0f, -20.0f);
+    if (reset_camera && camera) {
+        camera->reset(Vec3(48.0f, 36.0f, 64.0f), -120.0f, -20.0f);
+    }
 }
 
-void SceneManager::build_cross_chunk_sphere_scene(Camera& camera) {
+void SceneManager::build_cross_chunk_sphere_scene(bool reset_camera, Camera* camera) {
     WorldGrid world;
     WorldCoord center(31, 31, 31);
     int radius = 12;
@@ -78,7 +117,7 @@ void SceneManager::build_cross_chunk_sphere_scene(Camera& camera) {
             for (int cx = 0; cx <= 1; ++cx) {
                 ChunkCoord c(cx, cy, cz);
                 if (world.has_chunk(c)) {
-                    MeshData chunk_mesh = mesh_chunk(world, c);
+                    MeshData chunk_mesh = mesh_for_chunk(current_mesher, world, c);
                     uint32_t base_index = static_cast<uint32_t>(combined_mesh.vertices.size());
                     float offset_x = static_cast<float>(cx * CHUNK_DIM);
                     float offset_y = static_cast<float>(cy * CHUNK_DIM);
@@ -103,6 +142,7 @@ void SceneManager::build_cross_chunk_sphere_scene(Camera& camera) {
     current_gl_mesh.upload(combined_mesh);
 
     current_stats.name = "Scene 3: Cross-Chunk Sphere (r=12 at (31,31,31))";
+    current_stats.mesher = current_mesher;
     current_stats.chunk_count = world.loaded_chunk_count();
     current_stats.solid_voxel_count = world.count_solid_voxels();
     current_stats.face_count = combined_mesh.face_count();
@@ -110,7 +150,9 @@ void SceneManager::build_cross_chunk_sphere_scene(Camera& camera) {
     current_stats.index_count = combined_mesh.index_count();
     current_stats.base_color = Vec3(0.92f, 0.72f, 0.28f); // Golden amber
 
-    camera.reset(Vec3(65.0f, 55.0f, 75.0f), -125.0f, -20.0f);
+    if (reset_camera && camera) {
+        camera->reset(Vec3(65.0f, 55.0f, 75.0f), -125.0f, -20.0f);
+    }
 }
 
 void SceneManager::render(const GLShader& shader, const Mat4& view, const Mat4& proj) const {

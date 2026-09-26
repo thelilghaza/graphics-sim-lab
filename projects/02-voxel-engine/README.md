@@ -4,11 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 5 Complete
+## Current Status: Milestone 6 Complete
 
-Milestones 1–4 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, and the naive exposed-face mesher baseline.
+Milestones 1–5 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, and minimal OpenGL 3.3 Core visualization.
 
-Milestone 5 introduces the first interactive 3D visualization layer: a clean OpenGL 3.3 Core Profile renderer with GLFW windowing, an embedded modern GL function loader, interactive 3D camera navigation (WASDQE + mouse look), real-time scene switching between deterministic worlds, and wireframe debug toggle.
+Milestone 6 implements a deterministic Greedy Meshing algorithm across all six face directions, merging compatible adjacent coplanar faces into maximal quads. It introduces rigorous canonical unit-face surface-equivalence validation against the naive baseline, a dedicated Release benchmark suite comparing Naive vs Greedy meshing, and viewer integration allowing live runtime toggling between meshing algorithms.
 
 ---
 
@@ -49,12 +49,25 @@ Milestone 5 introduces the first interactive 3D visualization layer: a clean Ope
 - **OpenGL 3.3 Core Profile**: Minimal context created using GLFW 3.4 with an embedded modern OpenGL function loader (`init_gl_loader`).
 - **Clean Architecture Separation**: CPU voxel simulation and meshing remain 100% graphics-free; `GLMesh` takes CPU `MeshData` and uploads to GPU VBO/EBO/VAO buffers.
 - **Directional Lighting Shader**: Minimal vertex and fragment shaders computing ambient + diffuse directional lighting from face normals with uniform base colors.
-- **Interactive 3D Camera**: 6-DOF navigation with delta-time keyboard movement (W/A/S/D/Q/E), smooth pitch/yaw mouse look, and reset functionality.
+- **Interactive 3D Camera**: Free-fly camera (3-axis translation with pitch/yaw look) with delta-time keyboard movement (W/A/S/D/Q/E), smooth pitch/yaw mouse look, and reset functionality.
 - **Visual Test Scenes**: Interactive scene switching (keys 1/2/3) across:
   - Scene 1: Full Solid Chunk ($32^3$)
   - Scene 2: Planar World ($y \le 15$)
   - Scene 3: Cross-Chunk Sphere (radius 12 centered at $(31,31,31)$ spanning 8 chunks)
-- **Viewer Executable**: `voxel_viewer` with real-time FPS counter, window title stats, and optional automated test flags (`--test-all-scenes`, `--test-frames`).
+- **Viewer Executable**: `voxel_viewer` with real-time FPS counter, window title stats, and optional automated test flags (`--test-all-scenes`, `--test-frames`, `--headless`).
+
+### Milestone 6 — Greedy Meshing Algorithm & Performance Analysis
+- **Greedy Meshing Algorithm**: Standard greedy 2D slice-mask algorithm (`greedy_mesh_chunk`) iterating across all six principal face directions (`PosX`, `NegX`, `PosY`, `NegY`, `PosZ`, `NegZ`). For each 2D slice, visible exposed faces are identified and merged into maximal deterministic rectangles.
+- **Material & Semantic Compatibility**: Adjacent faces merge if and only if they share identical voxel `type_id`. Faces with different `type_id` values remain separate quads, preventing invalid cross-material merging.
+- **Deterministic Geometry & Conventions**: Maintains 4 vertices and 6 indices per emitted quad, outward-facing axis-aligned normals, deterministic vertex order, and deterministic CCW triangle winding. Identical inputs yield bitwise identical vertex and index buffers.
+- **Rigorous Surface Equivalence**: Canonical unit-face decomposition verifies that greedy meshes describe the exact same visible surface as naive exposed-face meshes with zero holes or overlapping quads.
+- **Geometry Reduction**:
+  - Full Solid $32^3$ Chunk: Collapses from 6,144 naive faces to exactly 6 greedy quads (99.90% face/vertex/index reduction).
+  - Planar World ($y \le 15$): Collapses from 4,096 naive faces to 6 greedy quads (99.85% reduction).
+  - Sphere World ($r=12$): Drops from 2,646 faces to 1,050 quads (60.32% reduction).
+  - Mixed-Voxel Stripes: Drops from 4,096 faces to 34 quads (99.17% reduction).
+- **Computational Cost Analysis**: Greedy meshing requires 2D mask construction and maximal rectangle expansion, resulting in higher CPU generation time (~1.5-2.9 ms vs ~0.3-1.8 ms naive), trading generation time for up to 99.9% reduction in GPU vertex/index workload.
+- **Viewer Integration**: Interactive keys `N` (Naive mesher) and `G` (Greedy mesher) switch meshing algorithms on the active scene in real time without altering camera position.
 
 ---
 
@@ -65,7 +78,7 @@ Milestone 5 introduces the first interactive 3D visualization layer: a clean Ope
 - [x] **Milestone 3**: Basic Voxel Editing API & Deterministic Test Worlds (Solid, Empty, Sphere, Plane)
 - [x] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
 - [x] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
-- [ ] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
+- [x] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
 - [ ] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
 - [ ] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
 - [ ] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
@@ -74,9 +87,12 @@ Milestone 5 introduces the first interactive 3D visualization layer: a clean Ope
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
-- **No Premature Vulkan/GPU Compute**: Initial meshing and storage will be implemented on the CPU to establish clear baselines before offloading to GPU shaders in later projects.
-- **No Structural Fracture Physics**: Dynamic destruction solvers and impulse fracture physics belong to *Project 04: Procedural Destruction Sandbox*.
-- **No Complex Gameplay Engine**: Audio, scripting, and entity component systems will not be created here.
+- **Naive Mesher Retained**: The naive exposed-face mesher remains fully supported as the correctness baseline and comparison reference.
+- **No Vertex Sharing**: Greedy merging is evaluated strictly as quad reduction. Indexed vertex sharing is not implemented.
+- **No Chunk Streaming**: Dynamic chunk loading/unloading is deferred to Milestone 7.
+- **No Multithreading / GPU Meshing**: Meshing is evaluated on a single CPU thread; parallel generation is deferred to Milestone 8.
+- **No Structural Fracture Physics**: Dynamic destruction solvers belong to *Project 04: Procedural Destruction Sandbox*.
+- **No Complex Gameplay Engine**: Audio, scripting, and ECS systems are not created here.
 
 ---
 
@@ -92,4 +108,10 @@ ctest --preset default --output-on-failure
 cmake --preset release
 cmake --build --preset release
 ctest --preset release --output-on-failure
+
+# Benchmark
+./build/release/projects/02-voxel-engine/bench_greedy_mesher.exe
+
+# Interactive Viewer
+./build/release/projects/02-voxel-engine/voxel_viewer.exe
 ```

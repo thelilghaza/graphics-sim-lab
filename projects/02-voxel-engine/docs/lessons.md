@@ -76,6 +76,23 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 6 Implementation Observations
+
+1. **Canonical Unit-Face Surface Equivalence Verification**:
+   - Simply checking quad counts or vertex bounds is insufficient to prove greedy meshing correctness.
+   - Decomposing every emitted greedy quad back into its constituent set of $1 \times 1$ canonical unit faces (`CanonicalUnitFace{dir, x, y, z}`) and performing a strict `std::set` equality assertion against the naive mesher's canonical faces rigorously proves that greedy meshing covers the exact visible surface with zero holes, zero extraneous faces, and zero overlapping quads.
+
+2. **Computational Cost vs Geometric Reduction Trade-Off**:
+   - Greedy meshing requires scanning 6 directions $\times$ 32 slices, populating $32 \times 32$ 2D slice masks, and performing 2D maximal rectangle expansion.
+   - As a result, CPU generation time is higher (~1.5 to 2.9 ms per chunk in Release) compared to naive scanning (~0.3 to 1.8 ms per chunk).
+   - In return, planar geometry experiences massive reduction: a full solid chunk drops from 6,144 faces (24,576 vertices) to 6 quads (24 vertices), a 99.90% reduction. Even curved spherical surfaces drop by ~60%. This radically diminishes GPU vertex transformation, rasterization setup, and VBO memory bandwidth.
+
+3. **Material/Voxel-Type Compatibility Enforcement**:
+   - Slice masks must store `type_id` rather than boolean visibility. During maximal rectangle expansion along $u$ and $v$, cells are only merged if `mask[u][v] == type`.
+   - Verified that adjacent solid voxels with distinct `type_id` values (e.g. type 1 vs type 2) remain separate quads even when sharing a coplanar surface, preserving visual and material correctness.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

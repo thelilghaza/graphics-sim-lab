@@ -153,16 +153,20 @@ Meshing follows the empirical baseline-first methodology:
      - Full Solid $32^3$ Chunk: 6,144 faces, 24,576 vertices, 36,864 indices ($6 \times 30 \times 32^2 = 576,000$ internal shared faces culled).
    - Serves as the correctness oracle and meshing performance baseline.
 
-2. **Milestone 6 — Greedy Meshing Algorithm (PLANNED FUTURE WORK)**:
-   - Sweeps 2D slices along each axis.
-   - Merges adjacent coplanar quad faces sharing identical material types into larger rectangular quads.
-   - Reduces quad and vertex counts by 60%–80%, significantly cutting vertex processing and memory overhead.
+2. **Milestone 6 — Greedy Meshing Algorithm (IMPLEMENTED)**:
+   - **Algorithm Overview**: Standard greedy meshing across all 6 principal face orientations (`PosX`, `NegX`, `PosY`, `NegY`, `PosZ`, `NegZ`).
+   - **2D Slice-Mask Construction**: For each of the 32 slices along the face normal axis, constructs a $32 \times 32$ 2D slice mask. A mask entry stores the voxel's `type_id` if the voxel is solid and its neighbor in the direction of the normal is non-solid (or missing).
+   - **Maximal Deterministic Rectangle Expansion**: Iterates through mask cells $(u, v)$. For each non-zero cell, finds the maximal contiguous width $W$ of identical `type_id` along $u$, then extends height $H$ along $v$ as long as all cells in $[u, u+W-1] \times \{v+H\}$ match the identical `type_id`.
+   - **Material Compatibility**: Merging requires exact `type_id` match. Faces with distinct voxel `type_id`s never merge into the same quad, preventing texture or material bleeding.
+   - **Geometry Conventions**: Emits one quad per merged rectangle covering area $W \times H$. Preserves Milestone 4 geometry conventions: 4 vertices and 6 indices per emitted quad, outward-facing axis-aligned normals, and counter-clockwise winding order.
+   - **Determinism**: Direction processing order is strictly fixed (`PosX` -> `NegX` -> `PosY` -> `NegY` -> `PosZ` -> `NegZ`). Slices and coordinates are iterated monotonically, ensuring bitwise deterministic vertex and index buffers.
+   - **Surface Equivalence**: Validated by canonical unit-face decomposition (`extract_canonical_faces`), proving bitwise identical visible surface coverage compared to naive meshing across all test workloads.
 
 ---
 
-## 7. Data vs Rendering Backend Isolation (Milestone 5 Implementation)
+## 7. Data vs Rendering Backend Isolation (Milestones 5 & 6 Implementation)
 
-The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`mesh_chunk`) remain 100% independent of any graphics API or windowing library.
+The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`mesh_chunk`, `greedy_mesh_chunk`) remain 100% independent of any graphics API or windowing library.
 
 ```text
 [ Voxel Data (Chunk / WorldGrid) ]
@@ -174,13 +178,14 @@ The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`mesh_chun
 [ OpenGL Visualization Backend ] ──> Uploads to GPU (VBO, EBO, VAO) -> Render
 ```
 
-### Milestone 5 Visualization Stack
+### Visualization & Viewer Stack
 1. **Windowing & Context**: GLFW 3.4 creates a minimal OpenGL 3.3 Core Profile context (`1280x720`).
 2. **Function Loader**: Embedded lightweight function loader (`init_gl_loader`) dynamically loads OpenGL 3.3 function pointers via `glfwGetProcAddress` without external loader dependencies.
 3. **GPU Resources (`GLMesh`)**: Generates and manages `VAO`, `VBO` (vertex buffer holding `MeshVertex`), and `EBO` (index buffer holding 32-bit indices) with clean lifetime management.
 4. **Shading Model (`GLShader`)**: Directional lighting shader with ambient (35%) + diffuse (65%) lighting evaluated from face normal `vNormal` and light vector `uLightDir`.
-5. **Interactive Camera (`Camera`)**: 6-DOF camera with pitch/yaw mouse look and WASDQE delta-time movement.
+5. **Interactive Camera (`Camera`)**: Free-fly camera (3-axis translation with pitch/yaw look) with WASDQE delta-time movement and smooth pitch/yaw mouse look.
 6. **Deterministic Scenes (`SceneManager`)**: Provides real-time switching between Solid Chunk ($32^3$), Planar World ($y \le 15$), and Cross-Chunk Sphere (radius 12 across 8 chunks).
+7. **Runtime Mesher Switching**: Live toggling between Naive (`N`) and Greedy (`G`) meshing dynamically regenerates the active scene mesh without changing camera position or scene definitions.
 
 ## 8. Multithreading & Future Considerations
 

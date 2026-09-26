@@ -130,6 +130,27 @@ void process_input(GLFWwindow* window, float delta_time, SceneManager& scene_mgr
         key_3_pressed = false;
     }
 
+    // Mesher switching keys
+    static bool key_n_pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
+        if (!key_n_pressed) {
+            scene_mgr.set_mesher(MesherType::Naive);
+            key_n_pressed = true;
+        }
+    } else {
+        key_n_pressed = false;
+    }
+
+    static bool key_g_pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS) {
+        if (!key_g_pressed) {
+            scene_mgr.set_mesher(MesherType::Greedy);
+            key_g_pressed = true;
+        }
+    } else {
+        key_g_pressed = false;
+    }
+
     // Wireframe toggle
     static bool key_f_pressed = false;
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
@@ -161,13 +182,16 @@ int main(int argc, char** argv) {
 
     int max_test_frames = -1;
     bool test_all_scenes = false;
+    bool headless = false;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--test-frames") == 0 && i + 1 < argc) {
             max_test_frames = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--test-all-scenes") == 0) {
             test_all_scenes = true;
-            max_test_frames = 90; // 30 frames per scene
+            max_test_frames = 120; // 20 frames per mode/scene combination
+        } else if (std::strcmp(argv[i], "--headless") == 0) {
+            headless = true;
         }
     }
 
@@ -179,14 +203,14 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    if (max_test_frames > 0) {
+    if (headless) {
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // Headless-capable test mode
     }
 
     const int window_width = 1280;
     const int window_height = 720;
     GLFWwindow* window = glfwCreateWindow(window_width, window_height,
-                                          "Voxel Engine — Milestone 5 Viewer",
+                                          "Voxel Engine — Milestone 6 Viewer",
                                           nullptr, nullptr);
     if (!window) {
         std::cerr << "[GLFW Error] Failed to create OpenGL 3.3 Core window.\n";
@@ -233,6 +257,8 @@ int main(int argc, char** argv) {
     std::cout << "  [Q/E]     Move Camera (Down/Up)\n";
     std::cout << "  [Mouse]   Look around (Pitch/Yaw)\n";
     std::cout << "  [1/2/3]   Switch Test Scene (1: Solid Chunk, 2: Plane, 3: Sphere)\n";
+    std::cout << "  [N]       Switch to Naive Mesher\n";
+    std::cout << "  [G]       Switch to Greedy Mesher\n";
     std::cout << "  [F]       Toggle Wireframe Mode\n";
     std::cout << "  [R]       Reset Camera\n";
     std::cout << "  [ESC]     Exit Viewer\n\n";
@@ -250,10 +276,18 @@ int main(int argc, char** argv) {
         if (max_test_frames < 0) {
             process_input(window, delta_time, scene_mgr);
         } else if (test_all_scenes) {
-            if (total_frames == 30) {
+            if (total_frames == 20) {
+                scene_mgr.set_mesher(MesherType::Naive);
+            } else if (total_frames == 40) {
+                scene_mgr.set_mesher(MesherType::Greedy);
                 scene_mgr.switch_scene(2, g_camera);
             } else if (total_frames == 60) {
+                scene_mgr.set_mesher(MesherType::Naive);
+            } else if (total_frames == 80) {
+                scene_mgr.set_mesher(MesherType::Greedy);
                 scene_mgr.switch_scene(3, g_camera);
+            } else if (total_frames == 100) {
+                scene_mgr.set_mesher(MesherType::Naive);
             }
         }
 
@@ -283,8 +317,9 @@ int main(int argc, char** argv) {
             const SceneStats& stats = scene_mgr.get_current_stats();
             std::stringstream title;
             title << "Voxel Engine | " << stats.name
-                  << " | Chunks: " << stats.chunk_count
-                  << " | Faces: " << stats.face_count
+                  << " | Mesher: [" << mesher_type_name(stats.mesher) << "]"
+                  << " | Quads/Faces: " << stats.face_count
+                  << " | Verts: " << stats.vertex_count
                   << " | FPS: " << std::fixed << std::setprecision(1) << fps;
             glfwSetWindowTitle(window, title.str().c_str());
 
@@ -300,6 +335,9 @@ int main(int argc, char** argv) {
 
     const SceneStats& final_stats = scene_mgr.get_current_stats();
     std::cout << "[Viewer Shutdown] Active Scene: " << final_stats.name
+              << " | Mesher: [" << mesher_type_name(final_stats.mesher) << "]"
+              << " | Quads/Faces: " << final_stats.face_count
+              << " | Verts: " << final_stats.vertex_count
               << " | Total Rendered Frames: " << total_frames << "\n";
 
     shader.destroy();
