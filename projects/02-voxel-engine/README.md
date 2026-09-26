@@ -4,11 +4,13 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 2 Complete
+## Current Status: Milestone 3 Complete
 
 Milestone 1 introduced the compact 2-byte `Voxel` payload and contiguous $32^3$ (`32,768` voxel) `Chunk` storage architecture ($65,536$ bytes).
 
-Milestone 2 extends this foundation with deterministic integer world coordinate conversion, explicit coordinate types (`WorldCoord`, `ChunkCoord`, `LocalCoord`), abstract `WorldAccessor` interface, concrete `WorldGrid` container, and cross-chunk neighbor access testing.
+Milestone 2 extended this foundation with deterministic integer world coordinate conversion, explicit coordinate types (`WorldCoord`, `ChunkCoord`, `LocalCoord`), abstract `WorldAccessor` interface, concrete `WorldGrid` container, and cross-chunk neighbor access testing.
+
+Milestone 3 adds a clean voxel editing API (`clear_voxel`, `is_solid`, `fill_box`), explicit default air/empty representation (`Voxel(0,0)`), deterministic test-world generators (`generate_solid_world`, `generate_plane_world`, `generate_sphere_world`), cross-chunk test worlds, exact determinism verification, and a text-based developer demo utility.
 
 ---
 
@@ -27,7 +29,17 @@ Milestone 2 extends this foundation with deterministic integer world coordinate 
 - **WorldAccessor Abstraction**: Abstract `WorldAccessor` interface for querying world-space voxels (`get_voxel`, `set_voxel`, `has_chunk`, `has_voxel`) across chunk boundaries without exposing internal chunk storage layout.
 - **WorldGrid Container**: Concrete `WorldGrid` storage container backed by `std::map<ChunkCoord, Chunk>` for managing loaded chunks and auto-allocating chunks on write.
 - **Missing-Chunk Behavior**: `WorldGrid::get_voxel(w)` returns default air `Voxel(0,0)` for unpopulated chunks, while `get_voxel(w, out)` returns `false` and `has_voxel(w)` returns `false`.
-- **Unit Test Suite**: CTest targets `test_voxel`, `test_chunk`, `test_coordinates`, and `test_world_accessor` verifying coordinate decomposition, negative boundaries, reconstruction invariants, missing-chunk behavior, and cross-chunk boundary reads/writes across X, Y, and Z axes.
+
+### Milestone 3 — Voxel Editing & Deterministic Test Worlds
+- **Voxel Editing API**: `clear_voxel` for setting voxels to air `Voxel(0,0)`, `is_solid` query helper (`type_id != 0`), `fill_box` for region filling, and `count_solid_voxels()` on `WorldGrid`.
+- **Default Air Representation**: Defined explicitly as `Voxel(0, 0)` with `type_id == 0`. Unpopulated chunks fall back to air on read.
+- **Deterministic Test World Generators**:
+  - `generate_solid_world`: Fills a finite bounding box with a chosen solid voxel.
+  - `generate_plane_world`: Generates a planar surface along X, Y, or Z axis with integer boundary checks ($c \le \text{plane\_coord}$).
+  - `generate_sphere_world`: Generates a sphere using integer squared-distance test ($dx^2 + dy^2 + dz^2 \le r^2$) without floating-point operations.
+- **Cross-Chunk Test Cases**: Verified test geometry (planes, spheres) crossing chunk boundaries ($X/Y/Z = 31/32$, negative boundaries $W = -1/0$).
+- **Determinism Verification**: Independent generation runs verified for 100% bitwise exact voxel equality.
+- **Developer Demo Utility**: Executable `demo_voxel_editing` demonstrating test world generation, chunk counts, solid voxel counts, cross-chunk boundary queries, and determinism verification.
 
 ---
 
@@ -35,7 +47,7 @@ Milestone 2 extends this foundation with deterministic integer world coordinate 
 
 - [x] **Milestone 1**: Compact Voxel Payload & Contiguous $32^3$ Chunk Storage Architecture
 - [x] **Milestone 2**: World Coordinate Conversion System & Cross-Chunk Neighbor Access API
-- [ ] **Milestone 3**: Basic Voxel Editing API & Deterministic Test Worlds (Solid, Empty, Sphere, Plane)
+- [x] **Milestone 3**: Basic Voxel Editing API & Deterministic Test Worlds (Solid, Empty, Sphere, Plane)
 - [ ] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
 - [ ] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
 - [ ] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis

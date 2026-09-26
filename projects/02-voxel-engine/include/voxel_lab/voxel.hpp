@@ -19,6 +19,14 @@ struct Voxel {
     constexpr bool operator!=(const Voxel& other) const {
         return !(*this == other);
     }
+
+    constexpr bool is_air() const noexcept {
+        return type_id == 0;
+    }
+
+    constexpr bool is_solid() const noexcept {
+        return type_id != 0;
+    }
 };
 
 static_assert(sizeof(Voxel) == 2, "Voxel struct payload must be exactly 2 bytes");

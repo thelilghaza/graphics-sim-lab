@@ -15,6 +15,9 @@ public:
 
     using WorldAccessor::get_voxel;
     using WorldAccessor::set_voxel;
+    using WorldAccessor::clear_voxel;
+    using WorldAccessor::is_solid;
+    using WorldAccessor::fill_box;
     using WorldAccessor::has_chunk;
     using WorldAccessor::has_voxel;
 
@@ -31,6 +34,7 @@ public:
 
     bool remove_chunk(const ChunkCoord& c) noexcept;
     size_t loaded_chunk_count() const noexcept { return chunks.size(); }
+    size_t count_solid_voxels() const;
     void clear() noexcept { chunks.clear(); }
 
 private:

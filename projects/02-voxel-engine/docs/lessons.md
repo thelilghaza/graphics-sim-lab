@@ -34,6 +34,18 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 3 Implementation Observations
+
+1. **Integer-Only Test World Generation**:
+   - Generator functions (`generate_solid_world`, `generate_plane_world`, `generate_sphere_world`) use exact integer comparisons ($dx^2 + dy^2 + dz^2 \le r^2$) rather than floating-point math.
+   - This eliminates floating-point rounding errors and cross-platform divergence, guaranteeing bitwise identical voxel outputs across runs.
+
+2. **Decoupled Generator Interface**:
+   - Generators operate on the abstract `WorldAccessor&` interface rather than concrete `WorldGrid` storage.
+   - This allows test world generators to populate any past, present, or future `WorldAccessor` implementation seamlessly.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

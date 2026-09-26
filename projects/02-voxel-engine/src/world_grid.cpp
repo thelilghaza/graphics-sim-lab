@@ -60,4 +60,21 @@ bool WorldGrid::remove_chunk(const ChunkCoord& c) noexcept {
     return chunks.erase(c) > 0;
 }
 
+size_t WorldGrid::count_solid_voxels() const {
+    size_t count = 0;
+    for (const auto& entry : chunks) {
+        const Chunk& chunk = entry.second;
+        for (int z = 0; z < CHUNK_DIM; ++z) {
+            for (int y = 0; y < CHUNK_DIM; ++y) {
+                for (int x = 0; x < CHUNK_DIM; ++x) {
+                    if (chunk.get_voxel(x, y, z).is_solid()) {
+                        ++count;
+                    }
+                }
+            }
+        }
+    }
+    return count;
+}
+
 } // namespace voxel_lab
