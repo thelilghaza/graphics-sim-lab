@@ -1,6 +1,6 @@
 # Engineering Principles
 
-All development in the Graphics & Simulation Lab adheres to these 10 baseline principles:
+All development in the Graphics & Simulation Lab adheres to these baseline principles:
 
 1. **Prefer understanding over abstraction.**
    Build from first principles to understand how things work under the hood before wrapping them in high-level interfaces.
@@ -31,3 +31,6 @@ All development in the Graphics & Simulation Lab adheres to these 10 baseline pr
 
 10. **Client/proprietary material must never be placed into this public repository.**
     All code, assets, and documentation must be original, open, or appropriately licensed for public distribution.
+
+11. **Maintain professional plain-text documentation style.**
+    All repository documentation, commit messages, code comments, benchmark reports, and generated technical text must use clean, professional plain text without emojis.

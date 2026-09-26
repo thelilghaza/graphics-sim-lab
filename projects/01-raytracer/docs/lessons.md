@@ -4,7 +4,7 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
-## 💡 Milestone 5 Engineering Observations
+## Milestone 5 Engineering Observations
 
 1. **AABB Slab Ray-Box Intersection Robustness**:
    - Andrew Kensler's slab method computes inverse ray directions `invD = 1.0 / dir[a]`. IEEE 754 division by zero produces `+inf` / `-inf`, which correctly flips min/max intervals when using `std::swap(t0, t1)`.
@@ -32,7 +32,7 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
-## 💡 Milestone 4 Engineering Observations
+## Milestone 4 Engineering Observations
 
 1. **Order-Independent Per-Sample PRNG (`SplitMix64`)**:
    - Replacing global sequential PRNG consumption with SplitMix64 per-sample seed mixing (`make_sample_seed`) guarantees exact 100% determinism independent of pixel iteration order.

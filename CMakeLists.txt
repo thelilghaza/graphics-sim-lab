@@ -28,6 +28,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/projects/01-raytracer/CMakeLists.txt")
   add_subdirectory(projects/01-raytracer)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/projects/02-voxel-engine/CMakeLists.txt")
+  add_subdirectory(projects/02-voxel-engine)
+endif()
+
 # Print foundation status summary
 message(STATUS "--------------------------------------------------------")
 message(STATUS "Graphics & Simulation Lab Foundation Configured")

@@ -4,7 +4,7 @@ A software-based CPU ray tracer built from first principles in modern C++20.
 
 ---
 
-## 📌 Current Status: Project 01 Complete (Milestones 1–5)
+## Current Status: Project 01 Complete (Milestones 1–5)
 
 Project 01 is fully complete through Milestone 5. It features Axis-Aligned Bounding Boxes (AABB), Bounding Volume Hierarchy (BVH) spatial partitioning, thread-local parallel rendering with zero hot-path synchronization, intersection work instrumentation, 100% byte-for-byte output determinism across thread counts, and comprehensive performance benchmark analysis.
 
@@ -12,7 +12,7 @@ The next project on the repository roadmap is **Project 02 — Voxel Engine**.
 
 ---
 
-## 🎯 Features Implemented in Milestone 5
+## Features Implemented in Milestone 5
 - **Axis-Aligned Bounding Box (AABB)**: Andrew Kensler slab ray-AABB intersection algorithm supporting minimum coordinate padding (`delta = 0.0001`) and arbitrary ray directions.
 - **Bounding Volume Hierarchy (BVH)**: Binary acceleration hierarchy partitioning scene primitives along longest-axis centroids, reducing average ray-primitive intersection complexity from linear $O(N)$ to expected $O(\log N)$ for well-separated geometry.
 - **Accelerated vs Naive Traversal Selection**: CLI option `--accel naive|bvh` (defaulting to `bvh`), preserving naive linear traversal as an empirical reference oracle for correctness regression testing.
@@ -23,7 +23,7 @@ The next project on the repository roadmap is **Project 02 — Voxel Engine**.
 
 ---
 
-## 🏗️ Architecture & Data Flow
+## Architecture & Data Flow
 
 ```text
 Image Buffer (Width x Height)
@@ -60,7 +60,7 @@ Join Threads ──> Merge Thread-Local RenderStats[t] into Total Stats ──> 
 
 ---
 
-## 🛠️ Build & Test Instructions
+## Build & Test Instructions
 
 ### Prerequisites
 - Modern C++20 compiler (MSVC 2022/2026, GCC 11+, or Clang 13+)
@@ -97,7 +97,7 @@ ctest --preset release --output-on-failure
 
 ---
 
-## 📊 Benchmark Summary (Milestone 5)
+## Benchmark Summary (Milestone 5)
 
 ### 1. Naive vs BVH Acceleration (Procedural Scene, 50+ Spheres, Release, 1 Thread)
 | Mode | Primary Samples | Total Rays | Sphere Tests | AABB Tests | Render Time (ms) | Speedup |
@@ -118,7 +118,7 @@ ctest --preset release --output-on-failure
 
 ---
 
-## 🗺️ Milestone Roadmap
+## Milestone Roadmap
 - [x] **Milestone 1**: Core math, Ray, Sphere intersection, Camera, PPM output, CLI, CTest harness.
 - [x] **Milestone 2**: Surface normals, Lambertian materials, direct lighting, shadow rays, anti-aliasing, gamma correction, deterministic PRNG.
 - [x] **Milestone 3**: Metal reflection, dielectric refraction, Schlick reflectance, TIR, recursive ray bounces, max depth limit.

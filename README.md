@@ -4,7 +4,7 @@ Welcome to the **Graphics & Simulation Lab**, a personal technical laboratory an
 
 ---
 
-## 🎯 Vision & Core Philosophy
+## Vision & Core Philosophy
 
 The primary objective of this repository is to build deep, first-principles engineering projects with rigorous code quality, measurements, reproducibility, and architectural clarity.
 
@@ -15,22 +15,22 @@ Each project in this repository is designed to be **independently understandable
 
 ---
 
-## 🗺️ Project Roadmap
+## Project Roadmap
 
 | # | Project | Planned Scope & Focus | Status |
 |---|---|---|---|
-| **01** | [CPU Ray Tracer](projects/01-raytracer/) | First-principles ray tracing: spheres, camera, materials, reflections, refractions, BVH acceleration, multithreading. | 🚧 Phase 0 Complete |
-| **02** | [Voxel Engine](projects/02-voxel-engine/) | Chunked voxel storage, greedy meshing, procedural terrain generation, fast ray casting. | 📋 Planned |
-| **03** | [Performance Lab](projects/03-performance-lab/) | CPU/GPU profiling, cache locality, SIMD vectorization, memory access pattern benchmarks. | 📋 Planned |
-| **04** | [Procedural Destruction Sandbox](projects/04-destruction-sandbox/) | Voronoi fracturing, rigid body dynamic simulation, impulse solvers, structural connectivity. | 📋 Planned |
-| **05** | [GPU Crater Simulator](projects/05-crater-simulator/) | Compute shaders, heightmap deformation, impact energy distribution, particle ejecta. | 📋 Planned |
-| **06** | [Tiny Game Engine](projects/06-tiny-engine/) | Minimalist 3D render pipeline, scene graph, entity component system, input handling. | 📋 Planned |
-| **07** | [WebGPU 3D Engine](projects/07-webgpu-engine/) | Modern web-native graphics pipeline, WGSL shaders, PBR rendering, glTF loading. | 📋 Planned |
-| **08** | [Godot Project Analyzer](projects/08-godot-analyzer/) | Static analysis, asset dependency graphs, performance diagnostics, developer tooling. | 📋 Planned |
+| **01** | [CPU Ray Tracer](projects/01-raytracer/) | First-principles ray tracing: spheres, camera, materials, reflections, refractions, BVH acceleration, multithreading. | Complete (Milestones 1-5) |
+| **02** | [Voxel Engine](projects/02-voxel-engine/) | Chunked voxel storage, greedy meshing, procedural terrain generation, fast ray casting. | NEXT (Design Phase) |
+| **03** | [Performance Lab](projects/03-performance-lab/) | CPU/GPU profiling, cache locality, SIMD vectorization, memory access pattern benchmarks. | Planned |
+| **04** | [Procedural Destruction Sandbox](projects/04-destruction-sandbox/) | Voronoi fracturing, rigid body dynamic simulation, impulse solvers, structural connectivity. | Planned |
+| **05** | [GPU Crater Simulator](projects/05-crater-simulator/) | Compute shaders, heightmap deformation, impact energy distribution, particle ejecta. | Planned |
+| **06** | [Tiny Game Engine](projects/06-tiny-engine/) | Minimalist 3D render pipeline, scene graph, entity component system, input handling. | Planned |
+| **07** | [WebGPU 3D Engine](projects/07-webgpu-engine/) | Modern web-native graphics pipeline, WGSL shaders, PBR rendering, glTF loading. | Planned |
+| **08** | [Godot Project Analyzer](projects/08-godot-analyzer/) | Static analysis, asset dependency graphs, performance diagnostics, developer tooling. | Planned |
 
 ---
 
-## 🛠️ Build & Quick Start
+## Build & Quick Start
 
 ### Prerequisites
 - **C++ Compiler**: Modern C++20 compliant compiler (MSVC 2022+, GCC 11+, or Clang 13+)
@@ -64,7 +64,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## 📑 Repository Structure
+## Repository Structure
 
 ```text
 graphics-sim-lab/
@@ -79,14 +79,15 @@ graphics-sim-lab/
 │   ├── benchmarking.md         # Benchmarking protocols
 │   └── lab-notes/              # Ongoing experimental notes
 ├── projects/                   # Independent engineering projects
-│   ├── 01-raytracer/           # CPU Ray Tracer
-│   └── ...                     # Projects 02 - 08
+│   ├── 01-raytracer/           # CPU Ray Tracer (Complete)
+│   ├── 02-voxel-engine/        # Voxel Engine (In Design)
+│   └── ...                     # Projects 03 - 08
 ├── libs/                       # Shared components (extracted only on proven reuse)
 └── tools/                      # Benchmark & build scripts
 ```
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
