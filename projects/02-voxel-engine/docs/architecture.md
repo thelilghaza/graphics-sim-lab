@@ -243,8 +243,86 @@ Because exposed-face culling and greedy meshing evaluate neighboring voxels thro
 
 ---
 
-## 9. Multithreading & Future Roadmap (Milestone 8+)
+---
 
-- **Single-Threaded Baseline (Milestone 7)**: All chunk streaming, procedural generation, meshing, and GPU buffer management in Milestone 7 execute synchronously on the main thread to establish the unthreaded empirical baseline.
-- **Multithreaded Generation & Meshing (Milestone 8)**: Milestone 8 will introduce thread pools and asynchronous worker task queues for terrain evaluation and CPU mesh extraction.
-- **Level of Detail (Milestone 10)**: Hierarchical octrees or downsampled chunk representations will be evaluated for extreme view distances.
+## 9. Multithreaded Chunk Generation & Parallel Mesh Extraction (Milestone 8)
+
+Milestone 8 parallelizes chunk procedural generation and CPU surface mesh extraction using a dedicated worker thread pool, maintaining strict data isolation, race-free snapshot consistency, versioned stale-job rejection, and decoupled main-thread OpenGL synchronization.
+
+```text
+Main / Render Thread                           Worker Threads (Fixed Pool)
+────────────────────                           ───────────────────────────
+1. Determine Desired Chunks (Chebyshev)
+2. Evict Out-of-Radius Chunks
+3. Capture 12 KB Neighborhood Snapshots
+4. Dispatch ChunkBuildTasks ───────────────► 5. ThreadPool Task Queue
+                                             6. Procedural Generation (Chunk)
+                                             7. CPU Meshing (Naive / Greedy MeshData)
+8. Completed Results Queue ◄──────────────── 8. Move ChunkBuildResult to Queue
+9. Stale-Version & Residency Validation
+10. Integrate Chunk into WorldGrid
+11. Synchronize GLMesh Buffers (OpenGL 3.3)
+12. Render Frame
+```
+
+### Worker Pool Architecture
+- **Implementation**: Fixed-size `ThreadPool` utilizing standard C++20 facilities (`std::thread`, `std::mutex`, `std::condition_variable`, `std::queue`, `std::atomic`).
+- **Worker Configuration Policy**: Configurable via `StreamingConfig::worker_count`.
+  - Default: `std::max(1u, std::thread::hardware_concurrency() - 1)` (preserves one hardware thread for the main render thread).
+  - Explicit: Configurable to any positive integer (e.g. 1, 2, 4, 8) or `0` for synchronous immediate debugging.
+- **Graceful Lifecycle**:
+  - `enqueue(task)`: Pushes work into the task queue and notifies a worker via condition variable.
+  - `wait_idle()`: Blocks calling thread until all active tasks complete and the task queue is empty.
+  - `stop()`: Signals shutdown flag, notifies all workers, joins all threads cleanly, and guarantees zero leaked threads or deadlocked shutdowns.
+
+### Data Ownership & Memory Boundaries
+To eliminate multi-threading data races, data ownership transitions through strict linear phases:
+1. **Task Creation (Main Thread)**:
+   - Captures an immutable `ChunkNeighborhoodSnapshot` from `WorldGrid`.
+   - Constructs a `ChunkBuildTask` containing the target chunk coordinate, monotonic version token, meshing mode, and snapshot.
+2. **Execution (Worker Thread)**:
+   - The worker owns the task and snapshot exclusively.
+   - If generating, writes directly into the snapshot's center chunk.
+   - Runs CPU mesher (`mesh_chunk` or `greedy_mesh_chunk`), reading from the snapshot via `WorldAccessor` without locking or accessing `WorldGrid`.
+   - Moves the generated `Chunk` and `MeshData` into a `ChunkBuildResult`.
+   - Pushes the result onto a thread-safe completed queue (`std::mutex` protected).
+3. **Integration (Main Thread)**:
+   - Validates the result against current chunk residency and generation version.
+   - Inserts the generated chunk into `WorldGrid`.
+   - Stores `MeshData` and marks the chunk dirty for GPU upload.
+
+### World Consistency & Snapshot Strategy
+Worker meshing requires examining the adjacent boundary voxels of the 6 orthogonal neighbors (+X, -X, +Y, -Y, +Z, -Z). Reading directly from a live mutable `WorldGrid` across threads would risk reading half-updated chunks or require coarse locks that serialize workers.
+
+Milestone 8 implements **Strategy B: Read-Only Neighborhood Snapshot**:
+- `ChunkNeighborhoodSnapshot` captures only the boundary planes:
+  - 6 faces $\times 32 \times 32$ voxels $\times 2$ bytes $= 12 \text{ KB}$ memory overhead.
+- Captured synchronously on the main thread in $< 5 \ \mu\text{s}$ per chunk before worker dispatch.
+- Inherits from `WorldGrid` / `WorldAccessor`: internal voxel reads query the local chunk buffer; boundary coordinate reads access the captured boundary arrays; missing neighbors evaluate as air.
+- Workers mesh in 100% memory isolation with zero locking, zero cache contention, and zero race conditions.
+
+### Stale Job Protection & Versioning
+When a camera moves rapidly, chunks may be queued, unloaded, re-requested, or switched between Naive and Greedy meshing before a worker completes building them.
+- A monotonic 64-bit counter (`next_version`) assigns a unique version token to each build request: `chunk_versions[coord] = v`.
+- Upon completion, the main thread checks:
+  1. Is the chunk coordinate still in `desired_chunks`?
+  2. Does `result.version == chunk_versions[coord]`?
+  3. Does `result.mesher_type == current_mesher_type`?
+- If any check fails, the result is discarded immediately without corrupting `WorldGrid`, and `metrics.jobs_discarded_stale` is incremented.
+
+### OpenGL Main-Thread Invariant
+- **Strict Prohibition**: Worker threads **MUST NOT** and **DO NOT** execute any OpenGL calls, create/delete `GLMesh` instances, allocate VAO/VBO/EBO handles, compile shaders, or touch GLFW.
+- **Main Thread Synchronization**: `SceneManager` handles all GPU resource updates during its regular `update(camera)` call on the main render thread. Completed CPU meshes are uploaded to GPU buffers sequentially, preserving graphics driver stability and context thread affinity.
+
+### Determinism Guarantee
+Because worker execution order is non-deterministic due to OS thread scheduling:
+- Results are never sorted by completion order.
+- Voxel coordinate generation formulas and mesher quad sorting remain strictly deterministic.
+- Given identical seed parameters, chunk coordinates, and mesher type, the emitted `MeshData` (vertices, indices, quads) is bitwise identical regardless of worker count (1, 2, 4, or 8 workers).
+
+---
+
+## 10. Future Architectural Roadmap (Milestone 9+)
+
+- **Memory Footprint Optimization (Milestone 9)**: Memory pools for `Chunk` allocations, snapshot recycling, and mesh vertex buffer reuse to eliminate runtime heap allocations.
+- **Level of Detail (Milestone 10)**: Hierarchical octrees or downsampled chunk representations for extreme render distances.

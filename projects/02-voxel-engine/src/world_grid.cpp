@@ -56,6 +56,10 @@ Chunk& WorldGrid::get_or_create_chunk(const ChunkCoord& c) {
     return chunks[c];
 }
 
+void WorldGrid::set_chunk(const ChunkCoord& c, Chunk chunk) {
+    chunks[c] = std::move(chunk);
+}
+
 bool WorldGrid::remove_chunk(const ChunkCoord& c) noexcept {
     return chunks.erase(c) > 0;
 }

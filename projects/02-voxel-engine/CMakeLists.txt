@@ -21,6 +21,8 @@ add_library(voxel_engine STATIC
   src/test_worlds.cpp
   src/naive_mesher.cpp
   src/greedy_mesher.cpp
+  src/thread_pool.cpp
+  src/chunk_snapshot.cpp
   src/chunk_manager.cpp
   src/camera.cpp
 )
@@ -46,6 +48,10 @@ target_set_lab_warnings(bench_greedy_mesher)
 add_executable(bench_chunk_manager benchmarks/bench_chunk_manager.cpp)
 target_link_libraries(bench_chunk_manager PRIVATE voxel_engine)
 target_set_lab_warnings(bench_chunk_manager)
+
+add_executable(bench_multithreading benchmarks/bench_multithreading.cpp)
+target_link_libraries(bench_multithreading PRIVATE voxel_engine)
+target_set_lab_warnings(bench_multithreading)
 
 add_executable(voxel_viewer
   src/gl_loader.cpp

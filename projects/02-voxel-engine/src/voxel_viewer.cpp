@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
     const int window_width = 1280;
     const int window_height = 720;
     GLFWwindow* window = glfwCreateWindow(window_width, window_height,
-                                          "Voxel Engine — Milestone 7 Viewer",
+                                          "Voxel Engine — Milestone 8 Viewer",
                                           nullptr, nullptr);
     if (!window) {
         std::cerr << "[GLFW Error] Failed to create OpenGL 3.3 Core window.\n";
@@ -343,8 +343,10 @@ int main(int argc, char** argv) {
             title << "Voxel Engine | " << stats.name
                   << " | Mesher: [" << mesher_type_name(stats.mesher) << "]";
             if (scene_mgr.get_current_scene_index() == 4) {
-                title << " | CamChunk: (" << stats.cam_chunk.x << "," << stats.cam_chunk.y << "," << stats.cam_chunk.z << ")"
-                      << " | Chunks: " << stats.chunk_count << " (+" << stats.chunks_loaded_last_update << "/-" << stats.chunks_unloaded_last_update << ")";
+                title << " | Workers: " << stats.worker_count
+                      << " | CamChunk: (" << stats.cam_chunk.x << "," << stats.cam_chunk.y << "," << stats.cam_chunk.z << ")"
+                      << " | Chunks: " << stats.chunk_count << " (+" << stats.chunks_loaded_last_update << "/-" << stats.chunks_unloaded_last_update << ")"
+                      << " | Jobs: (P:" << stats.jobs_pending << ", Done:" << stats.jobs_completed << ", Stale:" << stats.jobs_discarded_stale << ")";
             } else {
                 title << " | Chunks: " << stats.chunk_count;
             }

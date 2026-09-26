@@ -114,6 +114,31 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 8 Implementation Observations
+
+1. **Boundary Snapshot vs WorldGrid Locking**:
+   - Locking `WorldGrid` with reader-writer locks or mutexes during worker meshing causes high lock contention because meshing a single chunk evaluates up to $6 \times 32,768 = 196,608$ neighbor checks.
+   - Capturing only the 6 orthogonal boundary planes ($12 \text{ KB}$) on the main thread in $< 5 \ \mu\text{s}$ enables 100% lock-free execution on worker threads. Workers operate in complete isolation without mutex overhead or risk of deadlocks.
+
+2. **Multithreaded Scaling Characteristics & Amdahl's Law**:
+   - For batch generation and meshing workloads (e.g. initial population of 125 chunks), scaling is strong:
+     - 1 worker: 1047.92 ms (Naive) / 2228.53 ms (Greedy)
+     - 2 workers: 591.86 ms (1.77x) / 1550.35 ms (1.44x)
+     - 4 workers: 352.77 ms (2.97x) / 770.44 ms (2.89x)
+     - 8 workers: 207.86 ms (5.04x) / 417.00 ms (5.34x)
+   - For small, sequential single-chunk load/unload operations (Workload D), thread dispatch overhead and synchronization dominate, producing ~1.0x scaling. This highlights the architectural rule: parallelize batched spatial regions; avoid per-voxel or micro-task thread dispatch.
+
+3. **Stale Result Invalidation Under High-Speed Traversal**:
+   - Rapid camera movement generates cascading load and unload requests for the same chunk before background workers finish computing.
+   - In Workload C (repeated boundary crossings), over 500 stale jobs were submitted and safely discarded upon completion without resurrecting unloaded chunks or overwriting newer state.
+   - Assigning a monotonic 64-bit generation version token to every chunk coordinate proved simple, robust, and completely race-free.
+
+4. **Preserving Determinism Across Concurrent Schedulers**:
+   - Because OS thread scheduling is non-deterministic, jobs complete in arbitrary order.
+   - Pushing completed results into a thread-safe queue and integrating them on the main thread without sorting chunks by completion order preserves bitwise identical vertex buffers, index arrays, and quad counts regardless of worker count.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

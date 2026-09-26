@@ -4,11 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 7 Complete
+## Current Status: Milestone 8 Complete
 
-Milestones 1–6 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, and greedy meshing with quad reduction.
+Milestones 1–7 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, greedy meshing with quad reduction, and dynamic single-threaded chunk management with distance-based streaming and hysteresis.
 
-Milestone 7 implements a single-threaded dynamic chunk manager (`ChunkManager`) providing deterministic distance-based streaming around the camera position using Chebyshev distance with separate load and unload radii (hysteresis). It adds a continuous deterministic procedural terrain generator, dynamic neighbor mesh invalidation across chunk boundaries (X, Y, Z, and negative coordinates), OpenGL viewer integration with Scene 4 (Dynamic Streaming World) and real-time title status, a comprehensive 12-test suite (`test_chunk_manager`), and dedicated streaming benchmarks (`bench_chunk_manager`).
+Milestone 8 parallelizes chunk generation and CPU surface mesh extraction using a fixed-size C++20 worker thread pool (`ThreadPool`), race-free read-only neighborhood snapshots (`ChunkNeighborhoodSnapshot`), version-based stale job protection, and decoupled main-thread OpenGL integration. OpenGL calls remain strictly isolated to the main thread. A 13-test concurrency suite (`test_multithreading`) validates clean shutdown, worker distribution, race rejection, boundary consistency, and determinism. Multi-core scaling benchmarks (`bench_multithreading`) demonstrate up to 5.35x speedup across 1, 2, 4, and 8 worker threads.
 
 ---
 
@@ -80,6 +80,16 @@ Milestone 7 implements a single-threaded dynamic chunk manager (`ChunkManager`) 
 - **Unit Test Suite**: Dedicated `test_chunk_manager` verifying initial load, same-chunk movement, $\pm X/Y/Z$ boundary crossings, deterministic reload, hysteresis band preservation, missing-chunk semantics, neighbor mesh invalidation across all axes and negative space, duplicate load suppression, and deterministic coordinate sets.
 - **Streaming Benchmark Suite**: `bench_chunk_manager` measuring single-threaded update throughput across initial population, single-chunk boundary moves, repeated 10-step crossings, and manual load/unload sequences for both Naive and Greedy meshing.
 
+### Milestone 8 — Multithreaded Chunk Generation & CPU Mesh Extraction
+- **Fixed-Size Thread Pool**: Self-contained C++20 `ThreadPool` using standard concurrency primitives (`std::thread`, `std::mutex`, `std::condition_variable`, `std::queue`, `std::atomic`). Configurable worker count (defaulting to hardware concurrency - 1 with minimum 1 fallback) with graceful shutdown, work draining (`wait_idle`), and zero leaked threads.
+- **Isolated Neighborhood Snapshot Architecture**: `ChunkNeighborhoodSnapshot` captures only the target chunk and its 6 orthogonal boundary planes ($12 \text{ KB}$ total footprint) from `WorldGrid` on the main thread in $< 5 \ \mu\text{s}$. Workers execute chunk generation and CPU surface meshing in complete isolation with zero mutex contention, zero locking on `WorldGrid`, and zero half-updated chunk reads.
+- **Stale Job Protection**: Monotonic 64-bit generation version token (`chunk_versions`) tracks the lifecycle of every submitted job. Stale build results produced by camera displacement or mesher switching are safely rejected upon completion, preventing resurrected or stale chunk state from corrupting `WorldGrid`.
+- **Main-Thread Graphics Invariant**: Worker threads never invoke OpenGL or GLFW functions, never create or mutate `GLMesh` buffers, and never touch GPU resources. All GPU allocations and buffer uploads remain strictly on the main thread during `SceneManager::update()`.
+- **Determinism Across Worker Counts**: Independent runs across 1, 2, 4, and 8 worker threads produce bitwise identical voxel volumes, identical quad counts, and identical vertex/index arrays, preserving the canonical meshing order.
+- **Concurrency Metrics**: Extended metrics tracking `worker_count`, `jobs_submitted`, `jobs_completed`, `jobs_discarded_stale`, `jobs_pending`, `chunks_generated`, and execution timings.
+- **Automated Concurrency Test Suite**: Dedicated `test_multithreading` verifying thread pool lifecycle, job distribution across workers, result completeness, stale result rejection, duplicate request handling, deterministic generation, deterministic meshing, boundary consistency, negative coordinate streaming, rapid load/unload stress, clean shutdown with pending work, and GPU thread isolation.
+- **Multi-Core Scaling Benchmark**: `bench_multithreading` evaluating Workloads A through E across 1, 2, 4, and 8 worker threads, achieving up to $5.35\times$ parallel speedup.
+
 ---
 
 ## Planned Milestone Roadmap
@@ -91,16 +101,19 @@ Milestone 7 implements a single-threaded dynamic chunk manager (`ChunkManager`) 
 - [x] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
 - [x] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
 - [x] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
-- [ ] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
+- [x] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
 - [ ] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
 - [ ] **Milestone 10**: Level of Detail (LOD) & Large-World Scale Experiments
 
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
-- **Single-Threaded Streaming**: Milestone 7 streaming executes synchronously on the main thread. Multithreaded chunk generation, asynchronous job queues, and parallel mesh extraction are deferred to Milestone 8.
-- **No Optimizations to Greedy Meshing**: Milestone 7 preserves the exact Milestone 6 greedy meshing algorithm as an evaluation baseline without premature optimization.
+- **Parallel CPU Work Only**: Chunk generation and CPU surface meshing are parallelized. OpenGL calls, context management, and GPU buffer uploads remain strictly isolated to the main thread.
+- **Main-Thread Streaming Coordination**: Streaming decisions, hysteresis calculations, neighbor invalidation dispatch, and result integration remain coordinated by the main thread.
+- **No Background / Async GPU Uploads**: Graphics drivers and OpenGL contexts are not shared across threads; all GPU buffer creation occurs synchronously on the main thread.
 - **No Level of Detail (LOD)**: Chunks stream at full $32^3$ resolution. Hierarchical LOD and distance-based downsampling are deferred to Milestone 10.
+- **No Memory Pooling**: Dynamic allocation of chunk snapshots and mesh vectors is unpooled; memory pooling is deferred to Milestone 9.
+- **No Advanced Work Stealing**: Fixed-size task queue with condition variable signaling is used without complex work-stealing schedulers.
 - **No Procedural Noise Libraries / Biomes**: Procedural terrain uses integer math; Perlin/Simplex noise, biomes, and infinite procedural simulation are non-goals.
 - **No Chunk Disk Persistence**: Dynamic chunk management operates entirely in-memory.
 - **Naive Mesher Retained**: The naive exposed-face mesher remains fully supported as the correctness baseline and comparison reference.
@@ -121,9 +134,9 @@ cmake --preset release
 cmake --build --preset release
 ctest --preset release --output-on-failure
 
-# Benchmark
-./build/release/projects/02-voxel-engine/bench_greedy_mesher.exe
+# Multithreading Scaling Benchmark
+./build/release/projects/02-voxel-engine/bench_multithreading.exe
 
-# Interactive Viewer
+# Interactive Viewer (Scene 4 Multithreaded Streaming)
 ./build/release/projects/02-voxel-engine/voxel_viewer.exe
 ```

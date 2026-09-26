@@ -20,7 +20,11 @@ MeshData mesh_for_chunk(MesherType mesher, const WorldAccessor& world, const Chu
 } // anonymous namespace
 
 SceneManager::SceneManager() {
-    // Default initial state
+    StreamingConfig cfg;
+    cfg.load_radius = 2;
+    cfg.unload_radius = 3;
+    cfg.worker_count = 4; // Use 4 worker threads for dynamic viewer streaming
+    chunk_manager.set_config(cfg);
 }
 
 bool SceneManager::switch_scene(int scene_index, Camera& camera) {
@@ -43,6 +47,22 @@ void SceneManager::update(const Camera& camera) {
         if (changed) {
             sync_streaming_gpu_meshes();
         }
+
+        const auto& m = chunk_manager.get_metrics();
+        current_stats.chunk_count = chunk_manager.loaded_chunk_count();
+        current_stats.face_count = m.total_faces_or_quads;
+        current_stats.vertex_count = m.total_vertices;
+        current_stats.index_count = m.total_indices;
+        current_stats.cam_chunk = chunk_manager.get_camera_chunk();
+        current_stats.chunks_loaded_last_update = m.chunks_loaded_this_update;
+        current_stats.chunks_unloaded_last_update = m.chunks_unloaded_this_update;
+        current_stats.total_chunks_loaded = m.total_chunks_loaded;
+        current_stats.total_chunks_unloaded = m.total_chunks_unloaded;
+        current_stats.worker_count = m.worker_count;
+        current_stats.jobs_pending = m.jobs_pending;
+        current_stats.jobs_completed = m.jobs_completed;
+        current_stats.jobs_discarded_stale = m.jobs_discarded_stale;
+        current_stats.total_cpu_build_time_ms = m.total_cpu_build_time_us / 1000.0;
     }
 }
 

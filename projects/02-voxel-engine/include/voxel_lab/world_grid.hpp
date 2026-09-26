@@ -13,6 +13,8 @@ class WorldGrid : public WorldAccessor {
 public:
     WorldGrid() = default;
 
+    virtual ~WorldGrid() = default;
+
     using WorldAccessor::get_voxel;
     using WorldAccessor::set_voxel;
     using WorldAccessor::clear_voxel;
@@ -28,9 +30,10 @@ public:
     bool has_chunk(const ChunkCoord& c) const noexcept override;
     bool has_voxel(const WorldCoord& w) const noexcept override;
 
-    Chunk* get_chunk(const ChunkCoord& c) noexcept;
-    const Chunk* get_chunk(const ChunkCoord& c) const noexcept;
+    virtual Chunk* get_chunk(const ChunkCoord& c) noexcept;
+    virtual const Chunk* get_chunk(const ChunkCoord& c) const noexcept;
     Chunk& get_or_create_chunk(const ChunkCoord& c);
+    void set_chunk(const ChunkCoord& c, Chunk chunk);
 
     bool remove_chunk(const ChunkCoord& c) noexcept;
     size_t loaded_chunk_count() const noexcept { return chunks.size(); }

@@ -26,6 +26,11 @@ struct SceneStats {
     size_t chunks_unloaded_last_update{0};
     size_t total_chunks_loaded{0};
     size_t total_chunks_unloaded{0};
+    size_t worker_count{0};
+    size_t jobs_pending{0};
+    size_t jobs_completed{0};
+    size_t jobs_discarded_stale{0};
+    double total_cpu_build_time_ms{0.0};
 };
 
 class SceneManager {
