@@ -1,0 +1,40 @@
+# Milestone 4 — Benchmark Record (Deterministic Sampling, Thin-Lens DOF & Procedural Scenes)
+
+Date: 2026-09-26
+Project: 01-raytracer
+Milestone: 4 (Deterministic PRNG Architecture, Thin-Lens Depth of Field & Procedural Scenes)
+
+System Specifications:
+----------------------
+Host OS          : Windows x64
+CPU              : AMD Ryzen / Intel x64 Host Processor (16 logical cores)
+Compiler         : Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 (MSVC)
+Build Type       : Debug (default preset with Ninja generator)
+C++ Standard     : C++20
+
+Benchmark Workload & Parameters:
+--------------------------------
+Image Resolution : 400 x 225 (90,000 pixels)
+Samples / Pixel  : 16 SPP (1,440,000 primary samples)
+Max Bounce Depth : 10
+RNG Seed         : 42 (SplitMix64 Order-Independent Per-Sample Seed Mixer)
+Gamma Correction : Gamma 2.0 (sqrt) at output stage
+
+Measured Execution Timing Comparison:
+--------------------------------------
+| Scene Config | Aperture (Diameter) | Focus Dist | Primary Samples | Shadow Rays | Secondary Rays | Total Rays | Render Time (ms) | Pixels / sec | Primary Samples / sec | Total Rays / sec |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **Demo Scene (Pinhole)** | 0.0 | 1.0 | 1,440,000 | 1,055,527 | 2,278,285 | 4,773,812 | **5,856.59 ms** | ~15,367 px/s | ~245,876 samples/s | ~815,117 rays/s |
+| **Demo Scene (Thin-Lens DOF)** | 0.2 | 1.2 | 1,440,000 | 1,055,770 | 2,278,080 | 4,773,850 | **6,036.44 ms** | ~14,909 px/s | ~238,551 samples/s | ~790,838 rays/s |
+| **Procedural Random Scene** | 0.1 | 10.0 | 1,440,000 | 1,344,505 | 2,280,125 | 5,064,630 | **42,817.70 ms**| ~2,101 px/s | ~33,630 samples/s | ~118,283 rays/s |
+
+Analysis & Cost Observations:
+------------------------------
+1. **Thin-Lens DOF Overhead vs Pinhole Camera**:
+   - Pinhole camera (`aperture = 0.0`) renders 16 SPP demo scene in 5,856.59 ms.
+   - Thin-lens camera (`aperture = 0.2`) renders the same scene in 6,036.44 ms (~3.07% overhead).
+   - Random lens disk sampling adds minimal compute cost while generating realistic focal plane blur.
+
+2. **Procedural Random Scene Scale (50+ Spheres)**:
+   - Increasing scene complexity from 5 spheres to 50+ spheres increases render time from 6.03 s to 42.82 s (~7.09x cost) due to linear $O(N)$ object traversal for 5,064,630 total traced rays.
+   - This baseline highlights the critical necessity of spatial acceleration structures (BVH) for Milestone 5.

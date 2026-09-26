@@ -1,0 +1,48 @@
+# Milestone 2 — Benchmark Record (Shading, Shadows & Anti-Aliasing Cost)
+
+Date: 2026-09-26
+Project: 01-raytracer
+Milestone: 2 (Materials, Direct Lighting, Shadows, Anti-Aliasing & Gamma Correction)
+
+System Specifications:
+----------------------
+Host OS          : Windows x64
+CPU              : AMD Ryzen / Intel x64 Host Processor (16 logical cores)
+Compiler         : Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 (MSVC)
+Build Type       : Debug (default preset with Ninja generator)
+C++ Standard     : C++20
+
+Benchmark Workload & Parameters:
+--------------------------------
+Scene            : Demo Scene (4 Lambertian spheres, 1 PointLight)
+Image Resolution : 400 x 225 (90,000 pixels)
+RNG Seed         : 42 (Deterministic)
+Shading Model    : Ambient + Direct Diffuse (Lambertian) + Shadow Rays (RAY_EPSILON = 0.001)
+Gamma Correction : Gamma 2.0 (sqrt) at output stage
+
+Measured Execution Timing Comparison:
+--------------------------------------
+| Samples / Pixel | Total Pixels | Primary Samples | Render Time (ms) | Scaling vs 1 SPP | Primary Samples / sec | Pixels / sec |
+|---|---|---|---|---|---|---|
+| **1 SPP**        | 90,000       | 90,000          | **65.94 ms**      | 1.00x             | ~1.36 M samples/sec    | ~1.36 M px/sec|
+| **4 SPP**        | 90,000       | 360,000         | **242.98 ms**     | 3.68x             | ~1.48 M samples/sec    | ~370.4 K px/sec|
+| **16 SPP**       | 90,000       | 1,440,000       | **948.29 ms**     | 14.38x            | ~1.52 M samples/sec    | ~94.9 K px/sec|
+
+Terminology Correction Note:
+----------------------------
+In earlier records, primary sample throughput was broadly summarized as "rays/sec". To maintain strict technical accuracy:
+- "Primary Samples" denotes primary camera rays cast (Pixels * SPP).
+- "Pixels/sec" denotes final pixel output throughput (Pixels / Time).
+- Total rays evaluated (including shadow rays) equal ~2x primary samples for unoccluded surface hits.
+
+Analysis & Cost Observations:
+------------------------------
+1. **Shading & Shadow Ray Cost vs Milestone 1 Baseline**:
+   - Milestone 1 (normal visualization, 1 SPP, 0 shadow rays): 33.93 ms.
+   - Milestone 2 (Lambertian shading + shadow rays, 1 SPP): 65.94 ms (~1.94x increase).
+   - The addition of shadow ray visibility testing doubles ray-scene intersection tests for unshadowed surface hits.
+
+2. **Anti-Aliasing Scaling**:
+   - Execution time scales linearly with sample count $S$ (\(O(S)\)).
+   - 4 SPP requires 3.68x the execution time of 1 SPP.
+   - 16 SPP requires 14.38x the execution time of 1 SPP.

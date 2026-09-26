@@ -1,0 +1,31 @@
+# Milestone 1 — Baseline Benchmark Record
+
+Date: 2026-09-26
+Project: 01-raytracer
+Milestone: 1 (Minimal First-Principles Renderer)
+
+System Specifications:
+----------------------
+Host OS          : Windows x64
+CPU              : AMD Ryzen / Intel x64 Host Processor (16 logical cores)
+Compiler         : Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 (MSVC)
+Build Type       : Debug (default preset with Ninja generator)
+C++ Standard     : C++20
+
+Benchmark Workload & Parameters:
+--------------------------------
+Scene            : Demo Scene (4 spheres: Center, Ground, Left, Right)
+Image Resolution : 400 x 225 (90,000 primary rays)
+Samples / Pixel  : 1 (Single ray sample per pixel)
+Max Bounce Depth : 1 (Direct primary ray intersection & normal shading)
+Threading        : Single-threaded
+
+Measured Execution Timing:
+--------------------------
+Run 1 (Initial benchmark run)     : 33.93 ms (~2,652,000 primary rays/sec)
+Run 2 (Verification benchmark run): 35.35 ms (~2,546,000 primary rays/sec)
+Average Baseline Timing          : ~34.64 ms
+
+Note on Measurement Variance:
+-----------------------------
+The variance between Run 1 (33.93 ms) and Run 2 (35.35 ms) is ~1.42 ms (~4%), attributable to standard CPU process scheduling and thermal variance in single-threaded unoptimized Debug builds. Both measurements are preserved as accurate empirical samples.

@@ -1,0 +1,97 @@
+# Milestone 5 — Benchmark Record (AABB, BVH Acceleration, Multithreaded Rendering & Performance Analysis)
+
+Date: 2026-09-26
+Project: 01-raytracer
+Milestone: 5 (Axis-Aligned Bounding Boxes, Bounding Volume Hierarchy, Multithreaded Parallel Rendering & Performance Matrix)
+
+System Specifications:
+----------------------
+Host OS          : Windows x64
+CPU              : AMD Ryzen / Intel x64 Host Processor (16 logical cores)
+Compiler         : Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 (MSVC)
+Build Configurations: Debug (`build/default`, `/Od /RTC1`) and Release (`build/release`, `/O2 /Ob2 /DNDEBUG`)
+C++ Standard     : C++20
+
+Benchmark Workload & Standard Parameters:
+-----------------------------------------
+Image Resolution : 400 x 225 (90,000 pixels)
+Samples / Pixel  : 16 SPP (1,440,000 primary samples)
+Max Bounce Depth : 10
+RNG Seed         : 42 (SplitMix64 Order-Independent Per-Sample PRNG)
+Output PPM Format: Byte-for-byte identical across all thread counts & acceleration modes
+
+
+================================================================================
+A. NAIVE LINEAR VS BVH ACCELERATION (Release Configuration, Single-Threaded)
+================================================================================
+
+| Scene Choice | Traversal Mode | Primary Samples | Shadow Rays | Secondary Rays | Total Rays | Sphere Tests | AABB Tests | Render Time (ms) | Pixels / sec | Total Rays / sec | Speedup |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Demo Scene (5 obj)** | Naive | 1,440,000 | 1,055,527 | 2,278,285 | 4,773,812 | 23,848,350 | 0 | **1,377.35 ms** | 65,342 | 3,465,930 | 1.00x (ref) |
+| **Demo Scene (5 obj)** | BVH | 1,440,000 | 1,055,527 | 2,278,285 | 4,773,812 | 18,658,246 | 23,158,720 | **1,478.21 ms** | 60,884 | 3,229,452 | 0.93x |
+| **Procedural (50+ obj)**| Naive | 1,440,000 | 1,343,219 | 2,278,655 | 5,061,874 | 956,161,773 | 0 | **5,346.64 ms** | 16,833 | 946,739 | 1.00x (ref) |
+| **Procedural (50+ obj)**| BVH | 1,440,000 | 1,343,219 | 2,278,655 | 5,061,874 | 20,773,480 | 158,973,943 | **2,164.21 ms** | 41,585 | 2,338,896 | **2.47x** |
+
+
+================================================================================
+B. MULTITHREADED THREAD SCALING & OUTPUT DETERMINISM (Release, BVH)
+================================================================================
+
+1. Demo Scene (400x225, 16 SPP, Seed 42, BVH):
+----------------------------------------------
+| Threads | Render Time (ms) | Pixels / sec | Samples / sec | Total Rays / sec | Speedup (vs 1 Thread) | Parallel Efficiency | Output SHA256 Hash Digest |
+|---|---|---|---|---|---|---|---|
+| **1 Thread**  | 1,478.21 ms | 60,884 | 974,150 | 3,229,452 | 1.00x | 100.0% | `2864CD572C42EB16DB4FF9FF6D369DF77D8F41CBB0A30E68A16593F36FB73257` |
+| **2 Threads** |   835.93 ms | 107,665 | 1,722,642 | 5,710,812 | **1.77x** | 88.5% | `2864CD572C42EB16DB4FF9FF6D369DF77D8F41CBB0A30E68A16593F36FB73257` |
+| **4 Threads** |   507.07 ms | 177,492 | 2,839,873 | 9,414,599 | **2.92x** | 73.0% | `2864CD572C42EB16DB4FF9FF6D369DF77D8F41CBB0A30E68A16593F36FB73257` |
+| **8 Threads** |   282.09 ms | 319,043 | 5,104,690 | 16,922,800 | **5.24x** | 65.5% | `2864CD572C42EB16DB4FF9FF6D369DF77D8F41CBB0A30E68A16593F36FB73257` |
+| **16 Threads**|   205.27 ms | 438,456 | 7,015,311 | 23,256,790 | **7.20x** | 45.0% | `2864CD572C42EB16DB4FF9FF6D369DF77D8F41CBB0A30E68A16593F36FB73257` |
+
+*Deterministic Output Evidence*: SHA256 hashes generated across 1, 2, 4, 8, and 16 worker threads are byte-for-byte identical.
+
+2. Procedural Random Scene (400x225, 16 SPP, Seed 42, BVH):
+------------------------------------------------------------
+| Threads | Render Time (ms) | Pixels / sec | Samples / sec | Total Rays / sec | Speedup (vs 1 Thread) | Speedup (vs Naive 1T) |
+|---|---|---|---|---|---|---|
+| **1 Thread**  | 2,164.21 ms | 41,585 | 665,368 | 2,338,896 | 1.00x | 2.47x |
+| **2 Threads** | 1,494.92 ms | 60,203 | 963,260 | 3,386,043 | **1.45x** | 3.58x |
+| **4 Threads** |   711.98 ms | 126,408 | 2,022,539 | 7,109,612 | **3.04x** | 7.51x |
+| **8 Threads** |   539.84 ms | 166,716 | 2,667,464 | 9,376,645 | **4.01x** | 9.90x |
+| **16 Threads**|   345.29 ms | 260,652 | 4,170,444 | 14,659,907 | **6.27x** | **15.48x** |
+
+
+================================================================================
+C. DEBUG VS RELEASE PERFORMANCE COMPARISON
+================================================================================
+
+| Scene & Accel Mode | Threads | Debug Time (ms) | Release Time (ms) | Optimization Speedup (Rel / Deb) |
+|---|---|---|---|---|
+| **Demo Scene (Naive)** | 1 | 5,810.35 ms | 1,377.35 ms | **4.22x faster** |
+| **Demo Scene (BVH)**   | 1 | 6,864.69 ms | 1,478.21 ms | **4.64x faster** |
+| **Demo Scene (BVH)**   | 8 | 1,421.38 ms |   282.09 ms | **5.04x faster** |
+| **Procedural (Naive)** | 1 | 42,910.30 ms| 5,346.64 ms | **8.03x faster** |
+| **Procedural (BVH)**   | 1 | 15,229.50 ms| 2,164.21 ms | **7.04x faster** |
+| **Procedural (BVH)**   | 8 | 3,360.96 ms |   539.84 ms | **6.23x faster** |
+
+
+================================================================================
+BENCHMARK INTERPRETATION & AUDITED TECHNICAL ANALYSIS
+================================================================================
+
+1. **Primitive Intersection Reduction**:
+   - For the 50+ sphere procedural scene, naive linear traversal executed 956,161,773 (956 million) sphere intersection tests.
+   - BVH hierarchy reduced sphere tests to 20,773,480 (20.7 million) — an overall **46.03x reduction** in primitive sphere intersection tests.
+   - BVH introduced 158,973,943 bounding-box slab tests to prune non-intersecting geometry branches.
+
+2. **BVH Speedup vs Linear Traversal & Complexity Limits**:
+   - On small scenes (5 objects), BVH incurs a slight overhead (~7% slower) because testing 5 spheres linearly (23.8M tests) is faster than traversing BVH tree nodes (18.6M sphere tests + 23.1M AABB tests).
+   - On medium/large scenes (50+ objects), BVH provides a **2.47x single-threaded speedup** (2,164 ms vs 5,346 ms) in Release mode and **2.82x speedup** in Debug mode (15,229 ms vs 42,910 ms).
+   - *Algorithmic Complexity Note*: On well-constructed hierarchies with minimal spatial overlap, BVH traversal exhibits typical $O(\log N \cdot R)$ average-case behavior per ray. In worst-case spatial arrangements with extensive box overlap, traversal degrades toward $O(N \cdot R)$ linear testing.
+
+3. **Multithreaded Work Scaling & Parallel Synchronization**:
+   - Thread parallelization is achieved via disjoint row range assignment per worker thread, using thread-local `RenderStats` accumulators with post-render aggregation and zero shared synchronization on the hot ray-tracing path.
+   - Combining BVH acceleration with 16 worker threads reduced total procedural scene render time from 5,346 ms to **345.29 ms** — a **15.48x total performance acceleration factor** over the single-threaded naive baseline.
+
+4. **Debug vs Release Compiler Optimization**:
+   - Release build configuration (`/O2 /Ob2 /DNDEBUG`) produced **4.22x to 8.03x lower render times** than the Debug configuration (`/Od /RTC1`) across all tested workloads.
+   - Inlining small vector methods (`Vec3`), stripping runtime check overhead, and optimizing tight slab ray-AABB loops likely account for this significant performance delta.

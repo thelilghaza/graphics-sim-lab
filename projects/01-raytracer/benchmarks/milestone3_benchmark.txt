@@ -1,0 +1,45 @@
+# Milestone 3 — Benchmark Record (Recursive Rays, Reflection & Refraction Cost)
+
+Date: 2026-09-26
+Project: 01-raytracer
+Milestone: 3 (Recursive Rays, Metal Reflection, Dielectric Refraction & Max Depth)
+
+System Specifications:
+----------------------
+Host OS          : Windows x64
+CPU              : AMD Ryzen / Intel x64 Host Processor (16 logical cores)
+Compiler         : Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 (MSVC)
+Build Type       : Debug (default preset with Ninja generator)
+C++ Standard     : C++20
+
+Benchmark Workload & Parameters:
+--------------------------------
+Scene            : Milestone 3 Showcase Scene (5 spheres: Ground, Lambertian, Glass IOR 1.5, Mirror Metal, Rough Copper Metal)
+Image Resolution : 400 x 225 (90,000 pixels)
+RNG Seed         : 42 (Deterministic)
+Gamma Correction : Gamma 2.0 (sqrt) at output stage
+
+Measured Execution Timing Comparison:
+--------------------------------------
+| Samples / Pixel | Max Depth | Primary Samples | Render Time (ms) | Scaling vs D1 | Primary Samples / sec | Pixels / sec |
+|---|---|---|---|---|---|---|
+| **1 SPP**        | **1**      | 90,000          | **77.73 ms**      | 1.00x         | ~1.16 M samples/sec    | ~1.16 M px/sec |
+| **1 SPP**        | **5**      | 90,000          | **159.46 ms**     | 2.05x         | ~564.4 K samples/sec   | ~564.4 K px/sec|
+| **1 SPP**        | **10**     | 90,000          | **163.64 ms**     | 2.10x         | ~549.9 K samples/sec   | ~549.9 K px/sec|
+| **16 SPP**       | **10**     | 1,440,000       | **2732.76 ms**    | 35.15x        | ~527.0 K samples/sec   | ~32.9 K px/sec |
+
+Terminology Correction Note:
+----------------------------
+- "Primary Samples": Primary camera rays cast (Pixels * SPP).
+- "Pixels / sec": Image rendering rate (Pixels / Render Time).
+- Total ray count including secondary bounces was not explicitly counted in Milestone 3 binaries; total ray tracking is introduced in Milestone 4 diagnostic counters.
+
+Analysis & Cost Observations:
+------------------------------
+1. **Recursion Depth Scaling (Max Depth 1 vs 5 vs 10)**:
+   - At `max-depth = 1` (primary rays only), render time is 77.73 ms. Specular reflection and refraction secondary bounces are terminated at depth 1.
+   - Increasing `max-depth` to 5 increases render time to 159.46 ms (~2.05x cost) as reflective and refractive rays bounce recursively through glass and metal surfaces.
+   - Increasing `max-depth` from 5 to 10 adds minimal additional cost (163.64 ms vs 159.46 ms, +2.6%), as most secondary rays escape the scene into the sky background within 3 to 5 bounces.
+
+2. **Combined AA and Recursion Scaling**:
+   - 16 SPP at max-depth 10 evaluates 1,440,000 primary samples plus millions of secondary reflection/refraction bounces, taking 2732.76 ms.

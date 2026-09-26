@@ -1,0 +1,49 @@
+# Build directories and generator output
+build/
+build-*/
+out/
+bin/
+lib/
+CMakeUserPresets.json
+
+# Visual Studio / MSVC artifacts
+.vs/
+*.vcxproj
+*.vcxproj.*
+*.sln
+*.dir/
+*.ipch
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cache
+*.ilk
+*.pdb
+*.idb
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+
+# IDE / Editor configurations
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*~
+
+# Rendered output image formats
+*.ppm
+*.bmp
+*.png
+*.tga
+
+# OS files
+.DS_Store
+Thumbs.db
