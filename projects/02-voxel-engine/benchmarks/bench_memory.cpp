@@ -349,9 +349,19 @@ int main() {
     report << " PROJECT 02 — VOXEL ENGINE: MILESTONE 9 MEMORY FOOTPRINT & BUFFER REUSE BENCHMARK REPORT\n";
     report << "========================================================================================================================\n\n";
 
+    #if defined(_MSC_VER)
+    std::string compiler_info = "MSVC " + std::to_string(_MSC_VER);
+    #elif defined(__clang__)
+    std::string compiler_info = "Clang " + std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__);
+    #elif defined(__GNUC__)
+    std::string compiler_info = "GCC " + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__);
+    #else
+    std::string compiler_info = "Unknown Compiler";
+    #endif
+
     report << "Environment & Configuration:\n";
     report << "  Build Configuration: Release (/O2, NDEBUG)\n";
-    report << "  Compiler:            MSVC " << _MSC_VER << "\n";
+    report << "  Compiler:            " << compiler_info << "\n";
     report << "  Timing Source:       std::chrono::high_resolution_clock\n";
     report << "  Memory Measurement:  GetProcessMemoryInfo (WorkingSetSize / PrivateUsage)\n\n";
 
