@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+
+add_executable(test_benchmark_harness test_benchmark_harness.cpp)
+target_link_libraries(test_benchmark_harness PRIVATE performance_lab)
+target_set_lab_warnings(test_benchmark_harness)
+
+add_test(NAME test_benchmark_harness COMMAND test_benchmark_harness)

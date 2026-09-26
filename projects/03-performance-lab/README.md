@@ -4,47 +4,31 @@ A hardware-aware micro-benchmarking laboratory dedicated to CPU cache locality o
 
 ---
 
-### Current Status: Phase 0 Complete (Architecture & Design Phase)
+### Current Status: Milestone 1 Complete
 
-Phase 0 establishes the technical roadmap, architectural boundaries, micro-benchmarking framework design, and milestone breakdown for Project 03 — Performance Lab. No source code or executable binaries have been implemented yet.
-
----
-
-## Technical Focus & Objectives
-
-1. **Cache Locality & Data Layout**:
-   - Compare Array of Structures (AoS), Structure of Arrays (SoA), and Array of Structures of Arrays (AoSoA) across linear scanning and random spatial access patterns.
-   - Quantify cache-line utilization (64-byte L1/L2 strides) and memory bandwidth efficiency.
-
-2. **SIMD Vectorization & Compiler Intrinsics**:
-   - Evaluate scalar C++ math routines against compiler auto-vectorization and explicit AVX2 / SSE4.2 SIMD compiler intrinsics (`<immintrin.h>`).
-   - Benchmark high-throughput geometric kernels including 4-way parallel batch dot products and 4-way parallel ray-AABB bounding box intersection tests.
-
-3. **Multi-Threaded Concurrency & Lock-Free Work Queues**:
-   - Measure lock contention overhead in mutex-synchronized work queues under 1, 2, 4, 8, and 16 worker threads.
-   - Design and benchmark lock-free atomic single-producer single-consumer (SPSC) and multi-producer multi-consumer (MPMC) ring buffer queues.
-
-4. **Memory Allocator Churn & Cache Locality**:
-   - Measure dynamic heap allocation and deallocation churn (`malloc`/`free`, `new`/`delete`, `std::allocator`).
-   - Benchmark linear arena / bump allocators against system heap allocators for transient batch workloads.
-
-5. **Reproducible Micro-Benchmarking Protocols**:
-   - Implement high-precision, low-overhead micro-benchmarking harness with statistical variance metrics (mean, median, standard deviation, min, max, throughput ops/sec).
+Milestone 1 implements the core micro-benchmarking harness, high-precision timing framework, statistical aggregation model, compiler optimization barriers, plain-text terminal report generator, CSV exporter, and CLI interface. Baseline harness validation workloads (`bench_harness`) and unit tests (`test_benchmark_harness`) are verified. No cache, SIMD, lock-free queue, or allocator experiments have been implemented yet.
 
 ---
 
-## Relationship to Projects 01 & 02
+## Implemented Milestone 1 Behavior
 
-- **Project 01 (Ray Tracer)**: Established first-principles ray tracing, bounding volume hierarchies (BVH), and material evaluation.
-- **Project 02 (Voxel Engine)**: Established compact 3D spatial grids, greedy meshing, multithreaded snapshot generation, and zero-allocation mesh buffer recycling.
-- **Project 03 (Performance Lab)**: Isolates low-level hardware performance characteristics observed in Projects 01 and 02 into pure, standalone micro-benchmarks. Project 03 builds its own minimal benchmark kernels without linking or depending on Project 01 or Project 02 source code.
+- **Micro-Benchmarking Harness (`BenchRunner`)**: Manages benchmark execution lifecycle: one-time setup -> 5 warmup iterations -> 100 timed iterations -> statistics computation -> plain-text terminal table -> CSV export -> teardown.
+- **High-Precision Monotonic Timing**: Uses C++20 `std::chrono::steady_clock` to record iteration durations in microseconds without calendar clock distortion.
+- **Statistical Aggregation (`compute_statistics`)**: Computes mean, median, sample standard deviation ($N-1$), minimum, maximum, operations per second ($\text{Ops/sec}$), and memory bandwidth ($\text{MB/s}$, $1 \text{ MB} = 10^6 \text{ bytes}$).
+- **Compiler Optimization Barrier (`do_not_optimize`, `clobber_memory`)**: Portable inline assembly / volatile memory barriers (`compiler_barrier.hpp`) preventing compiler dead-code elimination around benchmark outputs on MSVC, GCC, and Clang.
+- **Environment Metadata (`EnvironmentMetadata`)**: Auto-detects compiler ID and version, build configuration (Debug/Release), architecture (x86_64/ARM64), operating system (Windows/Linux/macOS), and hardware concurrency.
+- **Structured CSV Exporter**: Writes benchmark metadata and statistical metrics to CSV format. Requires explicit `--overwrite` flag to prevent accidental report file destruction.
+- **Command-Line Interface (`BenchCLI`)**: Supports `--help`, `--iterations N`, `--warmups N`, `--csv PATH`, `--overwrite`, and `--quiet`.
+- **Diagnostic Warning**: Automatically detects suspiciously short execution times ($< 0.02 \ \mu\text{s}$ per iteration) and outputs diagnostic warnings.
+- **Validation Workloads (`bench_harness`)**: Verifies integer accumulation, floating-point accumulation, contiguous array traversal, and deterministic scalar transformations.
+- **Automated CTest Suite (`test_benchmark_harness`)**: 9 unit test cases verifying config defaults, overrides, iteration counts, statistical formulas (mean, median, sample stddev), single-iteration bounds, CSV schema, and compiler barriers.
 
 ---
 
 ## Planned Milestone Roadmap
 
 - [x] **Phase 0**: Discovery, Technical Roadmap & Architecture Review
-- [ ] **Milestone 1**: Micro-Benchmarking Harness & High-Precision Timing Infrastructure
+- [x] **Milestone 1**: Micro-Benchmarking Harness & High-Precision Timing Infrastructure
 - [ ] **Milestone 2**: Cache Locality & Data Layout Benchmarks (AoS vs SoA vs Stride Access)
 - [ ] **Milestone 3**: SIMD Vectorization & Intrinsic Acceleration (AVX2 / SSE4.2 Vector & Geometry Kernels)
 - [ ] **Milestone 4**: Thread Contention & Lock-Free vs Mutex Synchronization Queues
@@ -54,10 +38,10 @@ Phase 0 establishes the technical roadmap, architectural boundaries, micro-bench
 
 ## Scope Boundaries & Explicit Non-Goals
 
-- **No Speculative Frameworks**: Shared libraries are NOT created upfront in `libs/`. All code remains strictly isolated in `projects/03-performance-lab/`.
-- **No Third-Party Benchmarking Frameworks**: Micro-benchmarking relies strictly on standard C++20 `std::chrono` and native OS timer primitives to maintain lightweight, transparent execution.
-- **No GPU Compute / Shaders**: GPU performance, compute shaders, and VRAM memory profiling are deferred to Project 05 (Crater Simulator).
-- **No Monolithic Engine Abstractions**: Focus is entirely on isolated micro-benchmarks and hardware measurement.
+- **No Cache / SIMD / Queue / Allocator Experiments Yet**: Milestone 1 focuses strictly on harness infrastructure. Benchmark experiments begin in Milestone 2.
+- **No Shared Libraries in `libs/`**: All code remains isolated in `projects/03-performance-lab/`.
+- **No Third-Party Benchmarking Dependencies**: Harness relies on standard C++20 standard library facilities.
+- **No GPU / Compute Shaders**: GPU performance profiling is deferred to Project 05 (Crater Simulator).
 
 ---
 
@@ -72,4 +56,7 @@ cmake --build --preset default
 
 # Run test suite via CTest
 ctest --preset default --output-on-failure
+
+# Execute baseline harness validation benchmark
+./build/release/projects/03-performance-lab/bench_harness.exe
 ```
