@@ -135,18 +135,28 @@ public:
 
 ## 6. Surface Extraction & Meshing Strategy
 
-Meshing will follow the empirical baseline-first methodology:
+Meshing follows the empirical baseline-first methodology:
 
-1. **Milestone 4 — Naive Exposed-Face Culling (Baseline)**:
-   - Iterates through all $32^3$ voxels in a chunk.
-   - For each solid voxel, checks all 6 neighbor positions (+X, -X, +Y, -Y, +Z, -Z).
-   - Generates quad vertices only for faces bordering air voxels or world boundaries.
+1. **Milestone 4 — Naive Exposed-Face Culling (Baseline - IMPLEMENTED)**:
+   - Iterates through all $32^3 = 32,768$ local voxels `(lx, ly, lz)` in a chunk.
+   - For each solid voxel, queries all 6 neighbor directions (+X, -X, +Y, -Y, +Z, -Z) via `WorldAccessor`.
+   - Emits a quad (4 `MeshVertex` struct elements, 6 `uint32_t` indices) if and only if the neighbor is non-solid / air (`!world.is_solid(neighbor_w)`).
+   - **Cross-Chunk Boundaries**: Neighbor queries cross local chunk boundaries transparently via `WorldAccessor`, correctly culling faces adjacent to solid voxels in neighboring chunks while emitting faces adjacent to unpopulated/missing chunks.
+   - **Face Geometry Convention**:
+     - Local voxel `(lx, ly, lz)` occupies unit cube $[lx, lx+1] \times [ly, ly+1] \times [lz, lz+1]$.
+     - Vertex positions lie in chunk-local floating point range $[0.0, 32.0]$.
+     - Outward-facing normals: $+X(1,0,0)$, $-X(-1,0,0)$, $+Y(0,1,0)$, $-Y(0,-1,0)$, $+Z(0,0,1)$, $-Z(0,0,-1)$.
+     - Counter-clockwise (CCW) winding order looking at face from outside.
+   - **Baseline Face Counts**:
+     - Single Isolated Voxel: 6 faces, 24 vertices, 36 indices.
+     - Two Adjacent Voxels: 10 faces, 40 vertices, 60 indices (shared face culled).
+     - Full Solid $32^3$ Chunk: 6,144 faces, 24,576 vertices, 36,864 indices ($6 \times 30 \times 32^2 = 576,000$ internal shared faces culled).
    - Serves as the correctness oracle and meshing performance baseline.
 
-2. **Milestone 6 — Greedy Meshing Algorithm**:
+2. **Milestone 6 — Greedy Meshing Algorithm (PLANNED FUTURE WORK)**:
    - Sweeps 2D slices along each axis.
    - Merges adjacent coplanar quad faces sharing identical material types into larger rectangular quads.
-   - Reduces quad and vertex counts by 60%–80%, significantly cutting GPU vertex processing and index memory overhead.
+   - Reduces quad and vertex counts by 60%–80%, significantly cutting vertex processing and memory overhead.
 
 ---
 
