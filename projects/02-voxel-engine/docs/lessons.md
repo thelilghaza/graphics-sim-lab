@@ -163,6 +163,29 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 10 Implementation Observations
+
+1. **Deterministic Downsampling Policy & Thin Feature Preservation**:
+   - Aggregating coarse cells ($S \times S \times S$ blocks) requires a deterministic solidity rule.
+   - Requiring at least 1 solid voxel in the sub-block (`v.is_solid()`) guarantees that thin planes and spherical boundaries at distance remain visible as coarse surface cells rather than disappearing into air.
+   - Inheriting `type_id` from the first solid voxel in canonical order ensures 100% deterministic material rendering across LOD transitions.
+
+2. **Coplanar Seam Evaluation for Watertight Boundaries**:
+   - Seam gaps between chunks at different LOD levels occur when neighbor boundary faces do not evaluate the same 3D spatial region.
+   - Evaluating full-resolution $S \times S$ voxel blocks in `WorldAccessor` at neighbor chunk boundaries ensures boundary quads are placed coplanar at integer chunk borders ($X = cx \times 32 + \text{local}$).
+   - Solid neighbor blocks cull interior boundary faces, preventing visual cracks, T-junction holes, or internal geometry leaks.
+
+3. **74.67% Geometry Reduction in Large-World Scale Grids**:
+   - Benchmarking a 100-chunk ($10 \times 10$) grid demonstrated that distance-based mixed LOD reduces total mesh quads from 75,257 to 19,059 (74.67% reduction) and mesh memory from 8.61 MB to 2.18 MB.
+   - Distant chunks at LOD 1 (2x step) and LOD 2 (4x step) dramatically diminish GPU vertex shading, triangle rasterization, and VBO memory transfer.
+
+4. **Integration with Multithreaded Snapshot Pipeline**:
+   - LOD remeshing integrates seamlessly into the Milestone 8 versioned worker pipeline (`ChunkManager`).
+   - When camera distance changes a chunk's target LOD level, an asynchronous remesh task is queued with a new version token.
+   - Pre-allocated `MeshData` buffers from Milestone 9 buffer reuse are passed to workers, keeping memory allocation at 0 during streaming LOD transitions.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

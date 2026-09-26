@@ -21,6 +21,7 @@ add_library(voxel_engine STATIC
   src/test_worlds.cpp
   src/naive_mesher.cpp
   src/greedy_mesher.cpp
+  src/lod.cpp
   src/thread_pool.cpp
   src/chunk_snapshot.cpp
   src/chunk_manager.cpp
@@ -59,6 +60,13 @@ if(WIN32)
   target_link_libraries(bench_memory PRIVATE psapi)
 endif()
 target_set_lab_warnings(bench_memory)
+
+add_executable(bench_lod benchmarks/bench_lod.cpp)
+target_link_libraries(bench_lod PRIVATE voxel_engine)
+if(WIN32)
+  target_link_libraries(bench_lod PRIVATE psapi)
+endif()
+target_set_lab_warnings(bench_lod)
 
 add_executable(voxel_viewer
   src/gl_loader.cpp

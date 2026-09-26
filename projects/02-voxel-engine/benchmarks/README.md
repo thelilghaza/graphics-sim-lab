@@ -259,3 +259,39 @@ Milestone 9 evaluates memory consumption, dynamic allocation churn, and buffer r
 3. **Performance Impact of Buffer Reuse**:
    - For single-chunk updates (Workload A), buffer reuse improved execution time by **30.7%** (1.14 ms -> 0.79 ms) by avoiding vector reallocation loops.
    - For large-scale streaming (Workloads C, D, E), wall-clock build times remain virtually identical or slightly faster, proving that zero-allocation buffer reuse introduces zero synchronization overhead.
+
+---
+
+## Milestone 10 Benchmark Suite — Level of Detail & Large-World Scale Experiments
+
+Milestone 10 quantifies performance and geometry reduction across LOD 0 (1x1x1 full resolution), LOD 1 (2x2x2 step), and LOD 2 (4x4x4 step) using `bench_lod` in Release configuration.
+
+### Benchmark Environment & Parameters
+- **Build Configuration**: Release (`/O2` optimization, `NDEBUG`)
+- **Compiler**: MSVC 19.51 (Visual Studio 2026 Developer Command Prompt)
+- **Timing Source**: `std::chrono::high_resolution_clock`
+- **Worker Count**: 4 threads
+- **Target Executable**: `bench_lod`
+
+### Measured LOD Benchmark Results (`milestone10_benchmark.txt`)
+
+| Workload Description | LOD Mode | Resident Chunks | Mesh Quads | Mesh Vertices | Logical Mesh Memory | Wall Time (ms) |
+|---|---|---|---|---|---|---|
+| **Workload A: Single Chunk LOD 0 (Full)** | OFF | 1 | 1,566 | 6,264 | 187.9 KB | 2.70 ms |
+| **Workload A: Single Chunk LOD 1 (2x)** | ON | 1 | 411 | 1,644 | 49.3 KB | 2.72 ms |
+| **Workload A: Single Chunk LOD 2 (4x)** | ON | 1 | 117 | 468 | 14.0 KB | 2.86 ms |
+| **Workload B: 27 Chunks Region** | OFF | 27 | 7,301 | 29,204 | 876.1 KB | 97.87 ms |
+| **Workload B: 27 Chunks Region** | ON | 27 | 7,301 | 29,204 | 876.1 KB | 97.82 ms |
+| **Workload C: 125 Chunks Region** | OFF | 125 | 20,133 | 80,532 | 2,416.0 KB | 577.43 ms |
+| **Workload C: 125 Chunks Region** | ON | 125 | 10,691 | 42,764 | 1,282.9 KB | 556.35 ms |
+| **Workload D: Streaming 150 Chunks** | OFF | 125 | 20,133 | 80,532 | 2,416.0 KB | 529.07 ms |
+| **Workload D: Streaming 150 Chunks** | ON | 125 | 10,691 | 42,764 | 1,282.9 KB | 709.06 ms |
+| **Workload E: 5 Boundary Crossings** | OFF | 170 | 27,338 | 109,352 | 3,280.6 KB | 1,431.29 ms |
+| **Workload E: 5 Boundary Crossings** | ON | 170 | 11,442 | 45,768 | 1,373.0 KB | 1,858.32 ms |
+| **Large-World (100 Chunks): All-LOD0** | OFF | 100 | 75,257 | 301,028 | 8.61 MB | 545.43 ms |
+| **Large-World (100 Chunks): Mixed-LOD** | ON | 100 | 19,059 | 76,236 | 2.18 MB | 577.23 ms |
+
+### Large-World Scale Experiment Analysis
+- **Geometry & Memory Reduction**: In the 100-chunk ($10 \times 10$) large-world experiment, distance-based mixed LOD reduces mesh quad count from 75,257 to 19,059, vertex count from 301,028 to 76,236, and logical mesh memory from 8.61 MB to 2.18 MB (**74.67% reduction**).
+- **Chunk LOD Distribution**: 9 chunks at LOD 0 (near), 40 chunks at LOD 1 (mid), 51 chunks at LOD 2 (far).
+- **CPU Construction Cost**: Build time for 100 chunks is 545.43 ms (All-LOD 0) vs 577.23 ms (Mixed-LOD), reflecting a minor ~5.8% CPU evaluation cost during downsampling in exchange for a massive 74.67% reduction in GPU vertex shading and memory bandwidth.

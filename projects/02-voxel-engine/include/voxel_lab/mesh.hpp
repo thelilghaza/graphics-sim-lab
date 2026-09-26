@@ -19,6 +19,30 @@ inline const char* mesher_type_name(MesherType type) noexcept {
     return "Unknown";
 }
 
+enum class LODLevel : uint8_t {
+    LOD0 = 0,
+    LOD1 = 1,
+    LOD2 = 2
+};
+
+inline const char* lod_level_name(LODLevel level) noexcept {
+    switch (level) {
+        case LODLevel::LOD0: return "LOD 0 (Full)";
+        case LODLevel::LOD1: return "LOD 1 (2x)";
+        case LODLevel::LOD2: return "LOD 2 (4x)";
+    }
+    return "Unknown";
+}
+
+inline int lod_step_size(LODLevel level) noexcept {
+    switch (level) {
+        case LODLevel::LOD0: return 1;
+        case LODLevel::LOD1: return 2;
+        case LODLevel::LOD2: return 4;
+    }
+    return 1;
+}
+
 struct MeshVertex {
     float x{0.0f};
     float y{0.0f};

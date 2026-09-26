@@ -173,6 +173,17 @@ void process_input(GLFWwindow* window, float delta_time, SceneManager& scene_mgr
         key_f_pressed = false;
     }
 
+    // LOD toggle key
+    static bool key_l_pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) {
+        if (!key_l_pressed) {
+            scene_mgr.toggle_lod();
+            key_l_pressed = true;
+        }
+    } else {
+        key_l_pressed = false;
+    }
+
     // Reset camera key
     static bool key_r_pressed = false;
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
@@ -269,6 +280,7 @@ int main(int argc, char** argv) {
     std::cout << "  [1/2/3/4]   Switch Scene (1: Solid, 2: Plane, 3: Sphere, 4: Streaming)\n";
     std::cout << "  [N]         Switch to Naive Mesher\n";
     std::cout << "  [G]         Switch to Greedy Mesher\n";
+    std::cout << "  [L]         Toggle Level-of-Detail (LOD) System\n";
     std::cout << "  [F]         Toggle Wireframe Mode\n";
     std::cout << "  [R]         Reset Camera\n";
     std::cout << "  [ESC]       Exit Viewer\n\n";
@@ -308,7 +320,7 @@ int main(int argc, char** argv) {
                 g_wireframe = !g_wireframe;
                 glPolygonMode(GL_FRONT_AND_BACK, g_wireframe ? GL_LINE : GL_FILL);
             } else if (total_frames == 180) {
-                scene_mgr.set_mesher(MesherType::Naive);
+                scene_mgr.toggle_lod();
             }
         }
 
@@ -343,7 +355,9 @@ int main(int argc, char** argv) {
             title << "Voxel Engine | " << stats.name
                   << " | Mesher: [" << mesher_type_name(stats.mesher) << "]";
             if (scene_mgr.get_current_scene_index() == 4) {
-                title << " | Workers: " << stats.worker_count
+                title << " | LOD: " << (stats.lod_enabled ? "ON" : "OFF")
+                      << " [L0:" << stats.lod0_chunks << ", L1:" << stats.lod1_chunks << ", L2:" << stats.lod2_chunks << "]"
+                      << " | Workers: " << stats.worker_count
                       << " | CamChunk: (" << stats.cam_chunk.x << "," << stats.cam_chunk.y << "," << stats.cam_chunk.z << ")"
                       << " | Chunks: " << stats.chunk_count << " (+" << stats.chunks_loaded_last_update << "/-" << stats.chunks_unloaded_last_update << ")"
                       << " | Jobs: (P:" << stats.jobs_pending << ", Done:" << stats.jobs_completed << ", Stale:" << stats.jobs_discarded_stale << ")";

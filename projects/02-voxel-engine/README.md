@@ -4,11 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 9 Complete
+### Current Status: Milestone 10 Complete
 
-Milestones 1–8 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, greedy meshing with quad reduction, dynamic single-threaded chunk management with distance-based streaming and hysteresis, and multithreaded chunk generation with isolated read-only neighborhood snapshots.
+Milestones 1–9 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, greedy meshing with quad reduction, dynamic single-threaded chunk management with distance-based streaming and hysteresis, multithreaded chunk generation with isolated read-only neighborhood snapshots, and zero-allocation mesh buffer recycling.
 
-Milestone 9 optimizes memory consumption, eliminates dynamic allocation churn, and establishes buffer reuse across the CPU voxel pipeline. Reusable `MeshData` buffers circulate through a bounded manager-owned pool, transferring vector capacity into worker build tasks to eliminate repeated heap reallocations during streaming. A comprehensive memory benchmark suite (`bench_memory`) measures logical data footprint vs OS process working set, and a 12-test suite (`test_memory_optimization`) verifies exact output preservation, absence of buffer data leakage, and clean state across continuous load/unload cycles.
+Milestone 10 implements a deterministic Level-of-Detail (LOD) system for distant voxel chunks. Distant chunks dynamically downsample to 2x (LOD 1) and 4x (LOD 2) spatial step sizes, reducing distant geometry by up to 74.67% in large-world scale experiments while preserving seamless watertight chunk boundaries. A dedicated benchmark suite (`bench_lod`) quantifies performance and geometry reduction, interactive controls allow real-time LOD toggling in the viewer, and a 17-test suite (`test_lod`) verifies bit-exact LOD 0 equivalence, boundary transition seam culling, negative coordinate handling, and multithreaded determinism.
 
 ---
 
@@ -99,9 +99,20 @@ Milestone 9 optimizes memory consumption, eliminates dynamic allocation churn, a
 - **12-Test Verification Suite**: Dedicated `test_memory_optimization` verifying structural invariants, bitwise exact output after buffer reuse, absence of cross-chunk data leakage, clean repeated load/unload state, and safe shutdown with active pools.
 - **Comprehensive Memory Benchmark**: `bench_memory` measuring logical vs process memory across 1, 27, 125, and 150 resident chunks, 10 continuous boundary crossings, and 50 remesh cycles. Eliminates 99% of dynamic allocation churn during continuous streaming.
 
+### Milestone 10 — Level of Detail (LOD) & Large-World Scale Experiments
+- **Deterministic LOD Model**: 3 spatial resolution levels: LOD 0 (1x1x1 voxels, 32^3 grid), LOD 1 (2x2x2 step downsampling, 16^3 grid), LOD 2 (4x4x4 step downsampling, 8^3 grid).
+- **Coarse-Cell Aggregation Rule**: Evaluates $S \times S \times S$ sub-blocks of voxels. A coarse cell is solid if at least one voxel in the sub-block is non-air, inheriting the `type_id` of the first solid voxel in canonical order, preserving thin surface features at distance.
+- **Distance-Based Selection**: `select_lod_level()` uses Chebyshev distance from camera chunk with configurable thresholds (`lod0_radius` default 1, `lod1_radius` default 2).
+- **Seamless Boundary Seam Culling**: Boundary queries across chunk borders evaluate full-resolution voxel blocks in `WorldAccessor`, ensuring coplanar faces cull cleanly without interior face leaks, holes, or cracks.
+- **Multithreaded Task Pipeline Integration**: Worker threads execute `mesh_chunk_lod` with full snapshot isolation, reusing pre-allocated recycled mesh buffers with version protection for LOD mesh replacement.
+- **74.67% Geometry Reduction**: In a 100-chunk ($10 \times 10$) large-world experiment, distance-based mixed LOD reduces mesh quad count from 75,257 to 19,059, vertex count from 301,028 to 76,236, and logical mesh memory from 8.61 MB to 2.18 MB (74.67% reduction).
+- **Interactive Viewer & Controls**: Toggle LOD on/off with key `L`. Viewer window title displays active LOD chunk counts `[L0: X, L1: Y, L2: Z]`.
+- **17-Test Suite**: `test_lod` verifying LOD 0 bit-exact match with greedy mesher, threshold selection, LOD 1/2 quad reduction, coarse material rules, chunk bounds, axis-aligned normals, determinism, boundary seam culling, negative coordinates, stale LOD rejection, and multithreaded equivalence.
+- **Comprehensive Benchmark Suite**: `bench_lod` comparing baseline full-resolution LOD 0 against distance-based mixed LOD across single chunks, regions, streaming, and large-world scale grids.
+
 ---
 
-## Planned Milestone Roadmap
+## Implemented Milestone Roadmap
 
 - [x] **Milestone 1**: Compact Voxel Payload & Contiguous $32^3$ Chunk Storage Architecture
 - [x] **Milestone 2**: World Coordinate Conversion System & Cross-Chunk Neighbor Access API
@@ -112,13 +123,12 @@ Milestone 9 optimizes memory consumption, eliminates dynamic allocation churn, a
 - [x] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
 - [x] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
 - [x] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
-- [ ] **Milestone 10**: Level of Detail (LOD) & Large-World Scale Experiments
+- [x] **Milestone 10**: Level of Detail (LOD) & Large-World Scale Experiments
 
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
-- **In-Memory Optimization Only**: Focus is entirely on reducing heap churn and vector reallocations in RAM. Disk persistence and compression are deferred to future milestones.
-- **No Level of Detail (LOD)**: Chunks stream at full $32^3$ resolution. Hierarchical LOD and distance-based downsampling are deferred to Milestone 10.
+- **In-Memory Optimization Only**: Focus is entirely on spatial chunk management, multithreading, and memory buffer reuse. Disk persistence and chunk compression are deferred to future phases.
 - **No GPU Memory Managers / VRAM Pooling**: OpenGL vertex buffers remain managed via standard `GLMesh` buffer uploads on the main thread.
 - **No Custom Memory Allocators**: Relies on standard C++20 capacity reuse patterns without third-party or platform-specific heap replacement.
 - **No Procedural Noise Libraries / Biomes**: Procedural terrain uses integer math; Perlin/Simplex noise, biomes, and infinite procedural simulation are non-goals.
@@ -140,12 +150,15 @@ cmake --preset release
 cmake --build --preset release
 ctest --preset release --output-on-failure
 
+# LOD Performance & Large-World Benchmark
+./build/release/projects/02-voxel-engine/bench_lod.exe
+
 # Memory Footprint & Buffer Reuse Benchmark
 ./build/release/projects/02-voxel-engine/bench_memory.exe
 
 # Multithreading Scaling Benchmark
 ./build/release/projects/02-voxel-engine/bench_multithreading.exe
 
-# Interactive Viewer (Scene 4 Multithreaded Streaming)
+# Interactive Viewer (Scene 4 Multithreaded Streaming with LOD)
 ./build/release/projects/02-voxel-engine/voxel_viewer.exe
 ```

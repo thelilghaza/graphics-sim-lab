@@ -63,7 +63,26 @@ void SceneManager::update(const Camera& camera) {
         current_stats.jobs_completed = m.jobs_completed;
         current_stats.jobs_discarded_stale = m.jobs_discarded_stale;
         current_stats.total_cpu_build_time_ms = m.total_cpu_build_time_us / 1000.0;
+        current_stats.lod_enabled = chunk_manager.get_config().enable_lod;
+        current_stats.lod0_chunks = m.lod0_chunk_count;
+        current_stats.lod1_chunks = m.lod1_chunk_count;
+        current_stats.lod2_chunks = m.lod2_chunk_count;
+        current_stats.lod_changes = m.lod_changes;
     }
+}
+
+void SceneManager::toggle_lod() {
+    StreamingConfig cfg = chunk_manager.get_config();
+    cfg.enable_lod = !cfg.enable_lod;
+    chunk_manager.set_config(cfg);
+    if (current_scene_index == 4) {
+        ChunkCoord cc = chunk_manager.get_camera_chunk();
+        WorldCoord wc(cc.x * 32 + 16, cc.y * 32 + 16, cc.z * 32 + 16);
+        chunk_manager.update_streaming(wc, true);
+        chunk_manager.wait_all_pending();
+        sync_streaming_gpu_meshes();
+    }
+    std::cout << "[SceneManager] LOD system toggled: [" << (cfg.enable_lod ? "ON" : "OFF") << "]\n";
 }
 
 void SceneManager::set_mesher(MesherType mesher) {

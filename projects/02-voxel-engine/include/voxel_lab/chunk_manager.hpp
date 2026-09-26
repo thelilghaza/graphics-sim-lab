@@ -4,6 +4,7 @@
 #include "voxel_lab/chunk_snapshot.hpp"
 #include "voxel_lab/coordinates.hpp"
 #include "voxel_lab/greedy_mesher.hpp"
+#include "voxel_lab/lod.hpp"
 #include "voxel_lab/math.hpp"
 #include "voxel_lab/mesh.hpp"
 #include "voxel_lab/naive_mesher.hpp"
@@ -28,6 +29,11 @@ struct StreamingConfig {
     // Milestone 9: Memory & buffer reuse configuration
     bool enable_mesh_buffer_reuse{true};   // When true, recycles and reuses MeshData vector capacity
     size_t max_recycled_mesh_buffers{128}; // Upper bound on retained idle mesh buffers in pool
+
+    // Milestone 10: Level of Detail (LOD) configuration
+    bool enable_lod{true};   // When true, enables distance-based LOD selection
+    int lod0_radius{1};      // Chebyshev distance <= lod0_radius gets LOD 0 (Full detail)
+    int lod1_radius{2};      // Chebyshev distance <= lod1_radius gets LOD 1 (2x reduction)
 };
 
 struct StreamingMetrics {
@@ -61,6 +67,12 @@ struct StreamingMetrics {
     size_t mesh_buffers_allocated_fresh{0};
     size_t mesh_buffers_recycled{0};
     size_t mesh_buffers_evicted_from_pool{0};
+
+    // Milestone 10: LOD metrics
+    size_t lod0_chunk_count{0};
+    size_t lod1_chunk_count{0};
+    size_t lod2_chunk_count{0};
+    size_t lod_changes{0};
 };
 
 struct ChunkManagerMemoryStats {
@@ -87,6 +99,7 @@ struct ChunkBuildTask {
     uint64_t version{0};
     bool need_generation{false};
     MesherType mesher_type{MesherType::Naive};
+    LODLevel lod{LODLevel::LOD0};
     ChunkNeighborhoodSnapshot snapshot;
     ChunkGenerator generator;
     MeshData mesh; // Milestone 9: reusable mesh buffer passed into task
@@ -99,6 +112,7 @@ struct ChunkBuildResult {
     Chunk chunk;
     MeshData mesh;
     MesherType mesher_type{MesherType::Naive};
+    LODLevel lod{LODLevel::LOD0};
     double generation_time_us{0.0};
     double mesh_time_us{0.0};
 };
@@ -142,6 +156,10 @@ public:
     const MeshData* get_mesh(const ChunkCoord& chunk_coord) const noexcept;
     const std::map<ChunkCoord, MeshData>& get_all_meshes() const noexcept { return meshes; }
 
+    // Milestone 10: Access to LOD data
+    LODLevel get_chunk_lod(const ChunkCoord& chunk_coord) const noexcept;
+    const std::map<ChunkCoord, LODLevel>& get_all_chunk_lods() const noexcept { return chunk_lods; }
+
     // Change mesher algorithm (regenerates all currently loaded meshes)
     void set_mesher_type(MesherType mesher);
     MesherType get_mesher_type() const noexcept { return mesher_type; }
@@ -174,10 +192,10 @@ public:
     const std::vector<ChunkCoord>& get_recently_unloaded_mesh_coords() const noexcept { return recently_unloaded_meshes; }
 
 private:
-    void queue_build(const ChunkCoord& coord, bool need_generation);
-    void queue_remesh(const ChunkCoord& coord);
+    void queue_build(const ChunkCoord& coord, bool need_generation, LODLevel lod);
+    void queue_remesh(const ChunkCoord& coord, LODLevel lod);
     void execute_task_sync(ChunkBuildTask task);
-    void remesh_chunk_sync(const ChunkCoord& coord);
+    void remesh_chunk_sync(const ChunkCoord& coord, LODLevel lod);
     void recalculate_aggregate_mesh_metrics();
 
     // Milestone 9: Buffer reuse helpers
@@ -192,6 +210,7 @@ private:
     std::set<ChunkCoord> desired_chunks;
     std::set<ChunkCoord> loaded_chunks;
     std::map<ChunkCoord, MeshData> meshes;
+    std::map<ChunkCoord, LODLevel> chunk_lods;   // Milestone 10: Tracks active LOD level per loaded chunk mesh
     std::vector<MeshData> recycled_mesh_buffers; // Milestone 9: Pool of retained reusable MeshData buffers
     std::map<ChunkCoord, uint64_t> chunk_versions;
     uint64_t next_version{0};

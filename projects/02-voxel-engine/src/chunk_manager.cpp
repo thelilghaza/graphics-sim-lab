@@ -182,11 +182,22 @@ bool ChunkManager::update_streaming(const WorldCoord& camera_world_coord, bool f
         }
     }
 
-    // 4. Identify missing chunks to load
-    std::vector<ChunkCoord> to_load;
+    // 4. Identify missing chunks to load or chunks needing LOD update
+    std::vector<std::pair<ChunkCoord, LODLevel>> to_load;
+    std::vector<std::pair<ChunkCoord, LODLevel>> to_remesh_lod;
+
     for (const auto& c : new_desired) {
-        if (loaded_chunks.find(c) == loaded_chunks.end() && desired_chunks.find(c) == desired_chunks.end()) {
-            to_load.push_back(c);
+        LODLevel target_lod = select_lod_level(c, current_cam_chunk, config.enable_lod, config.lod0_radius, config.lod1_radius);
+        if (loaded_chunks.find(c) == loaded_chunks.end()) {
+            to_load.push_back({c, target_lod});
+        } else {
+            LODLevel current_lod = get_chunk_lod(c);
+            if (current_lod != target_lod || force) {
+                if (current_lod != target_lod) {
+                    metrics.lod_changes++;
+                }
+                to_remesh_lod.push_back({c, target_lod});
+            }
         }
     }
 
@@ -197,6 +208,7 @@ bool ChunkManager::update_streaming(const WorldCoord& camera_world_coord, bool f
         chunk_versions[c] = ++next_version; // Invalidate any in-flight jobs for this coord
         loaded_chunks.erase(c);
         meshes.erase(c);
+        chunk_lods.erase(c);
         world_grid.remove_chunk(c);
         recently_unloaded_meshes.push_back(c);
 
@@ -206,14 +218,19 @@ bool ChunkManager::update_streaming(const WorldCoord& camera_world_coord, bool f
         // Notify resident neighbors that c was unloaded
         for (const auto& n : get_chunk_neighbors(c)) {
             if (is_loaded(n) && desired_chunks.find(n) != desired_chunks.end()) {
-                queue_remesh(n);
+                queue_remesh(n, get_chunk_lod(n));
             }
         }
     }
 
     // Execute loads
-    for (const auto& c : to_load) {
-        queue_build(c, true);
+    for (const auto& [c, lod] : to_load) {
+        queue_build(c, true, lod);
+    }
+
+    // Execute LOD updates
+    for (const auto& [c, lod] : to_remesh_lod) {
+        queue_remesh(c, lod);
     }
 
     // If synchronous mode (worker_count == 0), wait for all immediate jobs
@@ -290,6 +307,7 @@ size_t ChunkManager::integrate_completed_jobs() {
             } else {
                 meshes[res.coord] = std::move(res.mesh);
             }
+            chunk_lods[res.coord] = res.lod;
             recently_updated_meshes.push_back(res.coord);
             metrics.chunks_meshed_this_update++;
             metrics.total_chunks_meshed++;
@@ -301,7 +319,7 @@ size_t ChunkManager::integrate_completed_jobs() {
         for (const auto& c : new_chunks_for_neighbor_remesh) {
             for (const auto& n : get_chunk_neighbors(c)) {
                 if (is_loaded(n) && desired_chunks.find(n) != desired_chunks.end()) {
-                    queue_remesh(n);
+                    queue_remesh(n, get_chunk_lod(n));
                 }
             }
         }
@@ -320,6 +338,14 @@ size_t ChunkManager::integrate_completed_jobs() {
     recalculate_aggregate_mesh_metrics();
 
     return total_integrated;
+}
+
+LODLevel ChunkManager::get_chunk_lod(const ChunkCoord& chunk_coord) const noexcept {
+    auto it = chunk_lods.find(chunk_coord);
+    if (it != chunk_lods.end()) {
+        return it->second;
+    }
+    return LODLevel::LOD0;
 }
 
 void ChunkManager::wait_all_pending() {
@@ -359,7 +385,8 @@ bool ChunkManager::load_chunk(const ChunkCoord& chunk_coord) {
     }
 
     desired_chunks.insert(chunk_coord);
-    queue_build(chunk_coord, true);
+    LODLevel target_lod = select_lod_level(chunk_coord, current_cam_chunk, config.enable_lod, config.lod0_radius, config.lod1_radius);
+    queue_build(chunk_coord, true, target_lod);
 
     if (config.worker_count > 0) {
         wait_all_pending();
@@ -377,6 +404,7 @@ bool ChunkManager::unload_chunk(const ChunkCoord& chunk_coord) {
     chunk_versions[chunk_coord] = ++next_version; // Invalidate any in-flight work
     desired_chunks.erase(chunk_coord);
     loaded_chunks.erase(chunk_coord);
+    chunk_lods.erase(chunk_coord);
 
     auto mit = meshes.find(chunk_coord);
     if (mit != meshes.end()) {
@@ -393,7 +421,7 @@ bool ChunkManager::unload_chunk(const ChunkCoord& chunk_coord) {
     // Invalidate neighbors
     for (const auto& n : get_chunk_neighbors(chunk_coord)) {
         if (is_loaded(n) && desired_chunks.find(n) != desired_chunks.end()) {
-            queue_remesh(n);
+            queue_remesh(n, get_chunk_lod(n));
         }
     }
 
@@ -423,7 +451,7 @@ void ChunkManager::set_mesher_type(MesherType mesher) {
     // Requeue remesh for all resident chunks with new mesher
     for (const auto& c : loaded_chunks) {
         if (desired_chunks.find(c) != desired_chunks.end()) {
-            queue_remesh(c);
+            queue_remesh(c, get_chunk_lod(c));
         }
     }
 
@@ -548,7 +576,7 @@ ChunkManagerMemoryStats ChunkManager::get_memory_stats() const {
     return stats;
 }
 
-void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation) {
+void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation, LODLevel lod) {
     uint64_t v = ++next_version;
     chunk_versions[coord] = v;
 
@@ -559,6 +587,7 @@ void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation) {
         v,
         need_generation,
         mesher_type,
+        lod,
         std::move(snap),
         generator,
         acquire_mesh_buffer()
@@ -575,8 +604,8 @@ void ChunkManager::queue_build(const ChunkCoord& coord, bool need_generation) {
     }
 }
 
-void ChunkManager::queue_remesh(const ChunkCoord& coord) {
-    queue_build(coord, false);
+void ChunkManager::queue_remesh(const ChunkCoord& coord, LODLevel lod) {
+    queue_build(coord, false, lod);
 }
 
 void ChunkManager::execute_task_sync(ChunkBuildTask task) {
@@ -585,6 +614,7 @@ void ChunkManager::execute_task_sync(ChunkBuildTask task) {
     res.version = task.version;
     res.need_generation = task.need_generation;
     res.mesher_type = task.mesher_type;
+    res.lod = task.lod;
 
     if (task.need_generation) {
         auto t0 = std::chrono::high_resolution_clock::now();
@@ -599,11 +629,7 @@ void ChunkManager::execute_task_sync(ChunkBuildTask task) {
 
     auto t2 = std::chrono::high_resolution_clock::now();
     task.mesh.clear();
-    if (task.mesher_type == MesherType::Naive) {
-        mesh_chunk(task.snapshot, task.coord, task.mesh);
-    } else {
-        greedy_mesh_chunk(task.snapshot, task.coord, task.mesh);
-    }
+    mesh_chunk_lod(task.snapshot, task.coord, task.lod, task.mesher_type, task.mesh);
     auto t3 = std::chrono::high_resolution_clock::now();
     res.mesh_time_us = std::chrono::duration<double, std::micro>(t3 - t2).count();
 
@@ -623,16 +649,28 @@ void ChunkManager::recalculate_aggregate_mesh_metrics() {
     size_t faces = 0;
     size_t vertices = 0;
     size_t indices = 0;
+    size_t l0_cnt = 0;
+    size_t l1_cnt = 0;
+    size_t l2_cnt = 0;
 
     for (const auto& [coord, mesh] : meshes) {
         faces += mesh.face_count();
         vertices += mesh.vertex_count();
         indices += mesh.index_count();
+
+        auto lit = chunk_lods.find(coord);
+        LODLevel l = (lit != chunk_lods.end()) ? lit->second : LODLevel::LOD0;
+        if (l == LODLevel::LOD0) l0_cnt++;
+        else if (l == LODLevel::LOD1) l1_cnt++;
+        else l2_cnt++;
     }
 
     metrics.total_faces_or_quads = faces;
     metrics.total_vertices = vertices;
     metrics.total_indices = indices;
+    metrics.lod0_chunk_count = l0_cnt;
+    metrics.lod1_chunk_count = l1_cnt;
+    metrics.lod2_chunk_count = l2_cnt;
 }
 
 } // namespace voxel_lab

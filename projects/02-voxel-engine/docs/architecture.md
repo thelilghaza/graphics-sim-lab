@@ -398,6 +398,63 @@ In Milestone 8, every task completion moved `task.snapshot.center_chunk` (64 KB)
 
 ---
 
-## 11. Future Architectural Roadmap (Milestone 10+)
+---
 
-- **Level of Detail (Milestone 10)**: Hierarchical octrees or downsampled chunk representations for extreme render distances.
+## 11. Level of Detail (LOD) & Large-World Scale Architecture (Milestone 10)
+
+Milestone 10 implements a deterministic Level-of-Detail (LOD) system for distant voxel chunks, downsampling voxel geometry over distance while preserving surface shape, watertight boundaries, and determinism.
+
+```text
+Camera Position
+      │
+      ▼
+select_lod_level(chunk, cam_chunk)
+      │
+      ├── Distance <= lod0_radius (1) ──> LOD 0 (Full 1x1x1 Voxels, 32^3 Grid)
+      ├── Distance <= lod1_radius (2) ──> LOD 1 (2x2x2 Downsampled Step, 16^3 Grid)
+      └── Distance >  lod1_radius (2) ──> LOD 2 (4x4x4 Downsampled Step, 8^3 Grid)
+      │
+      ▼
+mesh_chunk_lod(snapshot, chunk, lod, mesher)
+      ├── Coarse Cell Aggregation: Sub-block evaluated for solid presence
+      ├── Boundary Seam Query: Full-resolution WorldAccessor boundary culling
+      └── Merged Quad Emission: Scaled fx, fy, fz by step size (1, 2, or 4)
+```
+
+### 1. LOD Model & Spatial Resolution Levels
+- **LOD 0**: Full 1x1x1 resolution ($S=1$). Evaluates all $32^3 = 32,768$ voxels per chunk on a $32 \times 32 \times 32$ grid.
+- **LOD 1**: 2x spatial downsampling ($S=2$). Evaluates $16^3 = 4,096$ coarse cells per chunk ($2 \times 2 \times 2$ voxel blocks) on a $16 \times 16 \times 16$ grid.
+- **LOD 2**: 4x spatial downsampling ($S=4$). Evaluates $8^3 = 512$ coarse cells per chunk ($4 \times 4 \times 4$ voxel blocks) on an $8 \times 8 \times 8$ grid.
+
+### 2. Coarse-Cell Aggregation & Material Selection Rule
+- For a coarse cell $(cu, cv, cw)$ covering a block of $S \times S \times S$ voxels:
+  - **Solidity Policy**: The coarse cell is solid if at least 1 voxel in the $S \times S \times S$ sub-block is solid (`v.is_solid()`). This preserves thin surface features, planes, and spheres at distance without introducing holes.
+  - **Material Policy**: The coarse cell inherits `type_id` from the **first solid voxel** encountered in canonical scanning order ($lx$, then $ly$, then $lz$).
+  - **Determinism**: The aggregation function is integer-only, pure, and 100% deterministic.
+
+### 3. Boundary Seam Culling & Watertightness
+- To prevent visual cracks or holes between adjacent chunks rendered at different LOD levels (e.g. LOD 0 next to LOD 1):
+  - Face culling across chunk boundaries evaluates the $S \times S$ sub-face block of voxels in `WorldAccessor` at the neighbor chunk boundary.
+  - If all voxels in the neighbor boundary block are solid, the face is culled; if air exists, the face is emitted at plane position $X = cx \cdot 32 + \text{local\_face}$.
+  - Because face quad positions lie coplanar on integer chunk boundaries and evaluate the underlying `WorldAccessor` voxel snapshot, boundaries remain 100% closed and watertight without T-junction gaps.
+
+### 4. Integration with Streaming & Thread Pool Pipeline
+- `ChunkManager` updates chunk LOD levels dynamically during `update_streaming()`:
+  - If a resident chunk's target LOD level differs from its active mesh LOD level (`chunk_lods[c] != target_lod`), `queue_remesh(c, target_lod)` is dispatched with an updated version token.
+  - Pre-allocated `MeshData` buffers from the Milestone 9 recycle pool are passed to workers.
+  - On worker completion, version protection ensures stale LOD results are rejected, and `chunk_lods` updates atomically on the main thread during `integrate_completed_jobs()`.
+
+### 5. Large-World Scale Experiment Findings
+- Measured on a 100-chunk ($10 \times 10 \times 1$) scale grid:
+  - **All-LOD0 Baseline**: 75,257 quads, 301,028 vertices (8.61 MB logical mesh memory).
+  - **Distance-Based Mixed LOD**: 19,059 quads, 76,236 vertices (2.18 MB logical mesh memory).
+  - **LOD Chunk Distribution**: 9 chunks at LOD 0, 40 chunks at LOD 1, 51 chunks at LOD 2.
+  - **Geometry Reduction**: **74.67% reduction** in quads, vertices, and mesh memory while preserving visible terrain shape.
+
+---
+
+## 12. Scope Boundaries & Explicit Deferred Systems
+
+- **No Infinite World Paging**: World streaming is bounded by configurable load/unload radii around the active camera.
+- **No Advanced Temporal Blending**: LOD swaps occur upon worker task completion; clipmaps, continuous morphing, and temporal dithering are non-goals.
+- **No GPU Compute Meshing**: Generation and surface extraction remain CPU-bound, maintaining rendering pipeline independence.

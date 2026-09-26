@@ -31,6 +31,11 @@ struct SceneStats {
     size_t jobs_completed{0};
     size_t jobs_discarded_stale{0};
     double total_cpu_build_time_ms{0.0};
+    bool lod_enabled{true};
+    size_t lod0_chunks{0};
+    size_t lod1_chunks{0};
+    size_t lod2_chunks{0};
+    size_t lod_changes{0};
 };
 
 class SceneManager {
@@ -45,6 +50,9 @@ public:
 
     // Switches meshing algorithm and regenerates mesh keeping the current camera
     void set_mesher(MesherType mesher);
+
+    // Toggles Level of Detail (LOD) system on/off
+    void toggle_lod();
 
     void render(const GLShader& shader, const Mat4& view, const Mat4& proj) const;
 
