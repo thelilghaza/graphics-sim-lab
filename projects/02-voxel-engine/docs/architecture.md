@@ -160,23 +160,27 @@ Meshing follows the empirical baseline-first methodology:
 
 ---
 
-## 7. Data vs Rendering Backend Isolation
+## 7. Data vs Rendering Backend Isolation (Milestone 5 Implementation)
 
-The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`NaiveMesher`, `GreedyMesher`) must remain 100% independent of any graphics API or windowing library.
+The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`mesh_chunk`) remain 100% independent of any graphics API or windowing library.
 
 ```text
 [ Voxel Data (Chunk / WorldGrid) ]
               │
               ▼
-[ Surface Mesher (Naive / Greedy) ] ──> Generates MeshBuffer (Vertices + Indices)
+[ Surface Mesher (Naive / Greedy) ] ──> Generates CPU MeshData (Vertices + Indices)
               │
               ▼
-[ Renderer / Visualization Backend ] (Minimal OpenGL / Native Layer)
+[ OpenGL Visualization Backend ] ──> Uploads to GPU (VBO, EBO, VAO) -> Render
 ```
 
-This clean separation ensures voxel algorithms can be unit tested and benchmarked headless without windowing dependencies.
-
----
+### Milestone 5 Visualization Stack
+1. **Windowing & Context**: GLFW 3.4 creates a minimal OpenGL 3.3 Core Profile context (`1280x720`).
+2. **Function Loader**: Embedded lightweight function loader (`init_gl_loader`) dynamically loads OpenGL 3.3 function pointers via `glfwGetProcAddress` without external loader dependencies.
+3. **GPU Resources (`GLMesh`)**: Generates and manages `VAO`, `VBO` (vertex buffer holding `MeshVertex`), and `EBO` (index buffer holding 32-bit indices) with clean lifetime management.
+4. **Shading Model (`GLShader`)**: Directional lighting shader with ambient (35%) + diffuse (65%) lighting evaluated from face normal `vNormal` and light vector `uLightDir`.
+5. **Interactive Camera (`Camera`)**: 6-DOF camera with pitch/yaw mouse look and WASDQE delta-time movement.
+6. **Deterministic Scenes (`SceneManager`)**: Provides real-time switching between Solid Chunk ($32^3$), Planar World ($y \le 15$), and Cross-Chunk Sphere (radius 12 across 8 chunks).
 
 ## 8. Multithreading & Future Considerations
 

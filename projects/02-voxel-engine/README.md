@@ -4,13 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 3 Complete
+## Current Status: Milestone 5 Complete
 
-Milestone 1 introduced the compact 2-byte `Voxel` payload and contiguous $32^3$ (`32,768` voxel) `Chunk` storage architecture ($65,536$ bytes).
+Milestones 1–4 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, and the naive exposed-face mesher baseline.
 
-Milestone 2 extended this foundation with deterministic integer world coordinate conversion, explicit coordinate types (`WorldCoord`, `ChunkCoord`, `LocalCoord`), abstract `WorldAccessor` interface, concrete `WorldGrid` container, and cross-chunk neighbor access testing.
-
-Milestone 3 adds a clean voxel editing API (`clear_voxel`, `is_solid`, `fill_box`), explicit default air/empty representation (`Voxel(0,0)`), deterministic test-world generators (`generate_solid_world`, `generate_plane_world`, `generate_sphere_world`), cross-chunk test worlds, exact determinism verification, and a text-based developer demo utility.
+Milestone 5 introduces the first interactive 3D visualization layer: a clean OpenGL 3.3 Core Profile renderer with GLFW windowing, an embedded modern GL function loader, interactive 3D camera navigation (WASDQE + mouse look), real-time scene switching between deterministic worlds, and wireframe debug toggle.
 
 ---
 
@@ -39,7 +37,24 @@ Milestone 3 adds a clean voxel editing API (`clear_voxel`, `is_solid`, `fill_box
   - `generate_sphere_world`: Generates a sphere using integer squared-distance test ($dx^2 + dy^2 + dz^2 \le r^2$) without floating-point operations.
 - **Cross-Chunk Test Cases**: Verified test geometry (planes, spheres) crossing chunk boundaries ($X/Y/Z = 31/32$, negative boundaries $W = -1/0$).
 - **Determinism Verification**: Independent generation runs verified for 100% bitwise exact voxel equality.
-- **Developer Demo Utility**: Executable `demo_voxel_editing` demonstrating test world generation, chunk counts, solid voxel counts, cross-chunk boundary queries, and determinism verification.
+
+### Milestone 4 — Naive Exposed-Face Culling Mesher & CPU Mesh Buffer
+- **Renderer-Independent CPU Mesh Buffers**: `MeshVertex` (position + normal) and `MeshData` (contiguous vertices and 32-bit indices) completely isolated from graphics APIs.
+- **Naive Exposed-Face Culling**: `mesh_chunk` evaluates all $32,768$ voxels per chunk, testing 6 neighbor directions via `WorldAccessor`. Emits quads only when adjacent to air or missing chunks.
+- **Cross-Chunk Boundary Culling**: Shared internal faces crossing chunk boundaries are transparently culled via `WorldAccessor`.
+- **Exact Baseline Counts**: Full solid $32^3$ chunk emits exactly $6,144$ faces ($24,576$ vertices, $36,864$ indices).
+- **Benchmark Suite**: `bench_naive_mesher` measuring mesh generation times across empty, single-voxel, full-solid, plane, and sphere worlds.
+
+### Milestone 5 — Minimal OpenGL Visualization & Interactive Camera
+- **OpenGL 3.3 Core Profile**: Minimal context created using GLFW 3.4 with an embedded modern OpenGL function loader (`init_gl_loader`).
+- **Clean Architecture Separation**: CPU voxel simulation and meshing remain 100% graphics-free; `GLMesh` takes CPU `MeshData` and uploads to GPU VBO/EBO/VAO buffers.
+- **Directional Lighting Shader**: Minimal vertex and fragment shaders computing ambient + diffuse directional lighting from face normals with uniform base colors.
+- **Interactive 3D Camera**: 6-DOF navigation with delta-time keyboard movement (W/A/S/D/Q/E), smooth pitch/yaw mouse look, and reset functionality.
+- **Visual Test Scenes**: Interactive scene switching (keys 1/2/3) across:
+  - Scene 1: Full Solid Chunk ($32^3$)
+  - Scene 2: Planar World ($y \le 15$)
+  - Scene 3: Cross-Chunk Sphere (radius 12 centered at $(31,31,31)$ spanning 8 chunks)
+- **Viewer Executable**: `voxel_viewer` with real-time FPS counter, window title stats, and optional automated test flags (`--test-all-scenes`, `--test-frames`).
 
 ---
 
@@ -48,8 +63,8 @@ Milestone 3 adds a clean voxel editing API (`clear_voxel`, `is_solid`, `fill_box
 - [x] **Milestone 1**: Compact Voxel Payload & Contiguous $32^3$ Chunk Storage Architecture
 - [x] **Milestone 2**: World Coordinate Conversion System & Cross-Chunk Neighbor Access API
 - [x] **Milestone 3**: Basic Voxel Editing API & Deterministic Test Worlds (Solid, Empty, Sphere, Plane)
-- [ ] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
-- [ ] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
+- [x] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
+- [x] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
 - [ ] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
 - [ ] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
 - [ ] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction

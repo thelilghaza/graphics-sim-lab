@@ -62,6 +62,20 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 5 Implementation Observations
+
+1. **Decoupled Renderer & MeshData Pipeline**:
+   - The CPU voxel storage (`Chunk`, `WorldGrid`) and meshing pipeline (`mesh_chunk`) remain 100% independent of OpenGL and GLFW.
+   - `GLMesh` directly consumes `MeshData` (`MeshVertex` array and `uint32_t` indices) and uploads to GPU buffers via `glBufferData`. This allows any future rendering backend (e.g. Vulkan or software rasterizer) to plug into the exact same CPU pipeline without changing storage code.
+
+2. **Self-Contained Embedded Modern OpenGL Loader**:
+   - Rather than introducing large external GL loader generators, an embedded 120-line loader (`gl_loader.hpp`/`gl_loader.cpp`) queries function pointers via `glfwGetProcAddress`. This eliminated external package manager requirements and ensures zero link-time or runtime loader mismatches.
+
+3. **Multi-Chunk Scene Aggregation**:
+   - In cross-chunk scenes (such as the radius 12 sphere crossing 8 chunks), chunk-local vertex positions $[0.0, 32.0]$ are cleanly offset into world space using chunk coordinate offsets $(cx \times 32, cy \times 32, cz \times 32)$ into a unified `MeshData` buffer, allowing single-draw-call rendering of multi-chunk test geometry.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

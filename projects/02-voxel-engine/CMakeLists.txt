@@ -2,11 +2,25 @@ cmake_minimum_required(VERSION 3.20)
 
 project(voxel-engine LANGUAGES CXX)
 
+include(FetchContent)
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.4
+  GIT_SHALLOW TRUE
+)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw)
+
 add_library(voxel_engine STATIC
   src/chunk.cpp
   src/world_grid.cpp
   src/test_worlds.cpp
   src/naive_mesher.cpp
+  src/camera.cpp
 )
 
 target_include_directories(voxel_engine PUBLIC
@@ -22,6 +36,22 @@ target_set_lab_warnings(demo_voxel_editing)
 add_executable(bench_naive_mesher benchmarks/bench_naive_mesher.cpp)
 target_link_libraries(bench_naive_mesher PRIVATE voxel_engine)
 target_set_lab_warnings(bench_naive_mesher)
+
+add_executable(voxel_viewer
+  src/gl_loader.cpp
+  src/gl_mesh.cpp
+  src/gl_shader.cpp
+  src/scene_manager.cpp
+  src/voxel_viewer.cpp
+)
+target_link_libraries(voxel_viewer PRIVATE
+  voxel_engine
+  glfw
+)
+if(WIN32)
+  target_link_libraries(voxel_viewer PRIVATE opengl32)
+endif()
+target_set_lab_warnings(voxel_viewer)
 
 if(BUILD_TESTING)
   add_subdirectory(tests)
