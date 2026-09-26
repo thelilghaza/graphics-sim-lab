@@ -93,6 +93,27 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 7 Implementation Observations
+
+1. **Boundary Neighbor Mesh Invalidation Necessity**:
+   - Because exposed-face culling queries missing chunks as air, when chunk $B$ loads adjacent to chunk $A$, $A$'s exposed boundary faces become internal and must be culled. Conversely, when $B$ unloads, $A$'s shared boundary face must be regenerated immediately.
+   - Failing to invalidate the 6 orthogonal neighbors upon chunk load leaves phantom internal faces; failing to invalidate on chunk unload creates visible see-through boundary holes in the world mesh.
+   - Tested across X, Y, Z, and negative coordinate chunk boundaries for both Naive and Greedy meshers.
+
+2. **Hysteresis Band Prevents Boundary Thrashing**:
+   - Implementing separate `load_radius` (e.g. 2 chunks) and `unload_radius` (e.g. 3 chunks) creates a buffer ring where chunks remain resident.
+   - When a camera moves back and forth across a chunk boundary, chunks in the hysteresis band are not repeatedly deallocated, regenerated, and remeshed, drastically reducing CPU frame time spikes.
+
+3. **Incremental GPU Mesh Synchronization**:
+   - Rebuilding the entire GPU world vertex buffer on every chunk boundary crossing is prohibitively expensive.
+   - Maintaining individual `GLMesh` instances per chunk and incrementally uploading only dirty remeshed chunks (and destroying unloaded chunks) preserves interactive 60+ FPS rendering during continuous flight.
+
+4. **Single-Threaded Baseline for Multithreading (Milestone 8)**:
+   - Synchronous chunk streaming and meshing on the main thread takes ~138 ms (Naive) to ~310 ms (Greedy) when crossing a chunk boundary (loading 25 chunks and remeshing dirty neighbors).
+   - This baseline clearly demonstrates the necessity of Milestone 8 asynchronous generation and background worker thread pools to eliminate frame drops during high-speed camera movement.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:

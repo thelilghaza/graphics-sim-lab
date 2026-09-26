@@ -74,3 +74,48 @@ Milestone 6 evaluates the Greedy Meshing algorithm (`greedy_mesh_chunk`) against
    - Greedy meshing generation time is longer than naive meshing across all workloads (~1.5 ms to 2.9 ms per chunk vs ~0.3 ms to 1.8 ms).
    - This occurs because naive meshing performs only local neighbor tests and direct emissions, while greedy meshing constructs six sets of 32 2D slice masks and executes 2D maximal rectangle search loops.
    - Trade-off analysis: Greedy meshing trades an additional ~1 ms of CPU meshing time per chunk for a 60% to 99.9% reduction in GPU vertex count, vertex shader invocations, and VBO memory bandwidth. In rendering-heavy workloads, this trade-off dramatically improves overall frame rate and GPU throughput.
+
+---
+
+## Milestone 7 Benchmark Suite — Dynamic Chunk Manager Streaming Performance
+
+Milestone 7 measures single-threaded distance-based chunk streaming performance using `ChunkManager` across four operational workloads in Release configuration.
+
+### Benchmark Environment & Parameters
+- **Build Configuration**: Release (`/O2` optimization, `NDEBUG`)
+- **Compiler**: MSVC 19.51 (Visual Studio 2026 Developer Command Prompt)
+- **Timing Source**: `std::chrono::high_resolution_clock`
+- **Streaming Policy**: Chebyshev distance ($L_\infty$), `load_radius = 2`, `unload_radius = 3` (hysteresis)
+- **Target Executable**: `bench_chunk_manager`
+
+### Measured Streaming Results (`milestone7_benchmark.txt`)
+
+| Workload Description | Mesher | Avg Time (us) | Avg Time (ms) | Chunks Loaded | Chunks Unloaded | Resident Chunks | Total Faces/Quads |
+|---|---|---|---|---|---|---|---|
+| **Initial Population** ($r=2$, 125 chunks) | Naive | 313,466.22 us | 313.47 ms | 125 | 0 | 125 | 114,848 |
+| **Initial Population** ($r=2$, 125 chunks) | Greedy | 700,025.72 us | 700.03 ms | 125 | 0 | 125 | 20,133 |
+| **Move Camera by 1 Chunk** (+X) | Naive | 138,623.06 us | 138.62 ms | 25 | 0 | 150 | 131,152 |
+| **Move Camera by 1 Chunk** (+X) | Greedy | 310,458.21 us | 310.46 ms | 25 | 0 | 150 | 24,130 |
+| **Repeated Boundary Crossings** (10 steps) | Naive | 2,064,711.25 us | 2,064.71 ms | 375 | 225 | 150 | 130,544 |
+| **Repeated Boundary Crossings** (10 steps) | Greedy | 4,638,226.28 us | 4,638.23 ms | 375 | 225 | 150 | 24,120 |
+| **Manual Load/Unload Sequence** (30 chunks) | Naive | 92,452.88 us | 92.45 ms | 30 | 30 | 0 | 0 |
+| **Manual Load/Unload Sequence** (30 chunks) | Greedy | 267,640.29 us | 267.64 ms | 30 | 30 | 0 | 0 |
+
+### Benchmark Analysis & Architecture Insights
+
+1. **Initial Region Population**:
+   - Starting from an empty manager, populating a $(2 \times 2 + 1)^3 = 125$-chunk streaming volume takes **313.47 ms** for Naive meshing (~2.51 ms per chunk generation + meshing) and **700.03 ms** for Greedy meshing (~5.60 ms per chunk).
+   - In this procedural terrain, greedy meshing collapses 114,848 naive faces down to 20,133 quads (**82.47% geometric reduction**), matching the geometric reduction profile measured in Milestone 6.
+
+2. **Single-Chunk Movement & Hysteresis Behavior**:
+   - Moving the camera across a single chunk boundary requires generating a new $5 \times 5 = 25$ chunk boundary slab.
+   - Because `unload_radius` is 3, chunks at distance 3 remain in the hysteresis buffer zone, resulting in **0 unloads** on a 1-chunk displacement. Resident chunks temporarily expand from 125 to 150.
+   - Processing time is **138.62 ms** (Naive) and **310.46 ms** (Greedy).
+
+3. **Steady-State Boundary Crossings**:
+   - Across 10 sequential chunk boundary crossings, the manager loads 375 chunks and unloads 225 distant chunks, maintaining a stable resident population of 150 chunks.
+   - Average per-crossing latency is **206.47 ms** (Naive) and **463.82 ms** (Greedy).
+
+4. **Single-Threaded Baseline for Milestone 8**:
+   - While synchronous main-thread updates are acceptable for testing, a ~138-310 ms hitch during chunk boundary crossings confirms that main-thread blocking is the key bottleneck for real-time streaming.
+   - This benchmark provides the baseline against which Milestone 8 multithreaded chunk generation and parallel meshing will be measured.

@@ -187,7 +187,64 @@ The voxel storage classes (`Chunk`, `WorldGrid`) and surface meshers (`mesh_chun
 6. **Deterministic Scenes (`SceneManager`)**: Provides real-time switching between Solid Chunk ($32^3$), Planar World ($y \le 15$), and Cross-Chunk Sphere (radius 12 across 8 chunks).
 7. **Runtime Mesher Switching**: Live toggling between Naive (`N`) and Greedy (`G`) meshing dynamically regenerates the active scene mesh without changing camera position or scene definitions.
 
-## 8. Multithreading & Future Considerations
+## 8. Dynamic Chunk Manager & Distance-Based Streaming Architecture (Milestone 7)
 
-- **Embarrassingly Parallel Chunk Pipelines**: Chunk terrain generation (procedural noise) and surface mesh extraction are independent per chunk $(CX, CY, CZ)$.
-- **Thread Safety**: Worker threads receive read-only references to neighbor voxel data during mesh generation, producing isolated `MeshBuffer` outputs without shared mutable state locks.
+Milestone 7 introduces the `ChunkManager` to manage the lifecycle of resident voxel chunks in memory dynamically around an active camera or query position.
+
+```text
+Camera Position (World Space)
+          │
+          ▼
+   ChunkManager (Residency & Lifecycle Coordinator)
+     ├── Evaluates Chebyshev Distance: max(|dx|, |dy|, |dz|)
+     ├── Unloads Chunks where dist > unload_radius
+     ├── Allocates & Generates Chunks where dist <= load_radius
+     │     └── Invokes Deterministic Chunk Generator
+     ├── Invalidates 6 Orthogonal Neighbors on Load/Unload
+     └── Remeshes Dirty Chunks (Naive or Greedy Mesher)
+          │
+          ▼
+      WorldGrid (Underlying Voxel Chunk Storage)
+          │
+          ▼
+  SceneManager (OpenGL Visualization Bridge)
+     ├── Synchronizes Uploaded GLMesh Objects
+     └── Draws Chunk Meshes with Per-Chunk Model Matrices: translate(coord * 32.0f)
+```
+
+### Streaming Policy & Chebyshev Distance Metric
+- **Distance Metric**: Chebyshev distance ($L_\infty$ norm) in integer chunk coordinates:
+  $$D_\infty(A, B) = \max(|A.x - B.x|, |A.y - B.y|, |A.z - B.z|)$$
+  Chebyshev distance produces cubical chunk streaming regions of dimension $(2r + 1)^3$, ensuring uniform rendering distance along all Cartesian directions without directional pop-in artifacts.
+- **Hysteresis Band**: Configurable `load_radius` ($r_{\text{load}}$, default 2) and `unload_radius` ($r_{\text{unload}}$, default 3).
+  - A chunk coordinate $C$ is loaded when $D_\infty(C, C_{\text{cam}}) \le r_{\text{load}}$.
+  - A resident chunk $C$ is unloaded only when $D_\infty(C, C_{\text{cam}}) > r_{\text{unload}}$.
+  - The interval $[r_{\text{load}} + 1, r_{\text{unload}}]$ forms a hysteresis buffer zone. Small camera fluctuations along chunk boundaries do not trigger oscillatory load/unload cycles.
+
+### Deterministic Terrain Generation
+- All chunk content is generated deterministically via `generate_default_terrain_chunk` (or a custom `ChunkGenerator` callback).
+- Employs a continuous integer triangle-wave elevation function based on global integer world coordinates `(wx, wz)`.
+- Above elevation $y=26$, chunks are open sky (empty air). Below elevation $y=-6$, chunks are solid stone bedrock. Intersecting chunks contain stone, dirt, and grass voxels.
+- Unloading and reloading the identical chunk coordinate guarantees bitwise identical voxel state.
+
+### Boundary Neighbor Mesh Invalidation Rules
+Because exposed-face culling and greedy meshing evaluate neighboring voxels through `WorldAccessor`, missing chunks are treated as air, exposing boundary faces.
+1. **On Chunk Load**:
+   - The newly loaded chunk $C$ is generated and marked dirty.
+   - All 6 orthogonal neighbors $N \in \{C \pm (1,0,0), C \pm (0,1,0), C \pm (0,0,1)\}$ that are currently resident are marked dirty.
+   - Remeshing $C$ and $N$ culls internal shared faces that are now occluded.
+2. **On Chunk Unload**:
+   - The chunk $C$ is removed from `WorldGrid` and its `MeshData` / `GLMesh` is freed.
+   - All 6 orthogonal resident neighbors of $C$ are marked dirty and remeshed.
+   - Exposed faces facing the newly empty space are restored, preventing visible boundary holes.
+
+### Incremental GPU Mesh Synchronization
+`SceneManager` tracks dirty and unloaded chunk lists from `ChunkManager`. During `update()`, it destroys `GLMesh` instances for unloaded chunks and updates/uploads `GLMesh` instances for remeshed chunks, maintaining high runtime performance without rebuilding the entire world GPU buffer.
+
+---
+
+## 9. Multithreading & Future Roadmap (Milestone 8+)
+
+- **Single-Threaded Baseline (Milestone 7)**: All chunk streaming, procedural generation, meshing, and GPU buffer management in Milestone 7 execute synchronously on the main thread to establish the unthreaded empirical baseline.
+- **Multithreaded Generation & Meshing (Milestone 8)**: Milestone 8 will introduce thread pools and asynchronous worker task queues for terrain evaluation and CPU mesh extraction.
+- **Level of Detail (Milestone 10)**: Hierarchical octrees or downsampled chunk representations will be evaluated for extreme view distances.

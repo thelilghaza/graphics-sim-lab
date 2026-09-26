@@ -4,11 +4,11 @@ A high-performance C++20 voxel engine focused on volume representation, spatial 
 
 ---
 
-## Current Status: Milestone 6 Complete
+## Current Status: Milestone 7 Complete
 
-Milestones 1–5 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, and minimal OpenGL 3.3 Core visualization.
+Milestones 1–6 established the compact voxel payload, contiguous chunk storage, deterministic world coordinate conversion, abstract `WorldAccessor`, deterministic test-world generators, naive exposed-face mesher baseline, minimal OpenGL 3.3 Core visualization, and greedy meshing with quad reduction.
 
-Milestone 6 implements a deterministic Greedy Meshing algorithm across all six face directions, merging compatible adjacent coplanar faces into maximal quads. It introduces rigorous canonical unit-face surface-equivalence validation against the naive baseline, a dedicated Release benchmark suite comparing Naive vs Greedy meshing, and viewer integration allowing live runtime toggling between meshing algorithms.
+Milestone 7 implements a single-threaded dynamic chunk manager (`ChunkManager`) providing deterministic distance-based streaming around the camera position using Chebyshev distance with separate load and unload radii (hysteresis). It adds a continuous deterministic procedural terrain generator, dynamic neighbor mesh invalidation across chunk boundaries (X, Y, Z, and negative coordinates), OpenGL viewer integration with Scene 4 (Dynamic Streaming World) and real-time title status, a comprehensive 12-test suite (`test_chunk_manager`), and dedicated streaming benchmarks (`bench_chunk_manager`).
 
 ---
 
@@ -69,6 +69,17 @@ Milestone 6 implements a deterministic Greedy Meshing algorithm across all six f
 - **Computational Cost Analysis**: Greedy meshing requires 2D mask construction and maximal rectangle expansion, resulting in higher CPU generation time (~1.5-2.9 ms vs ~0.3-1.8 ms naive), trading generation time for up to 99.9% reduction in GPU vertex/index workload.
 - **Viewer Integration**: Interactive keys `N` (Naive mesher) and `G` (Greedy mesher) switch meshing algorithms on the active scene in real time without altering camera position.
 
+### Milestone 7 — Dynamic Chunk Manager & Distance-Based Streaming
+- **Single-Threaded Chunk Manager**: `ChunkManager` orchestrates the residency and lifecycle of active voxel chunks around a camera or world position, coordinating allocation in `WorldGrid`, generation, meshing, and mesh eviction.
+- **Distance-Based Streaming Policy**: Deterministic chunk-space Chebyshev distance ($L_\infty = \max(|dx|, |dy|, |dz|)$). Chunks within `load_radius` are loaded and meshed; chunks strictly beyond `unload_radius` are unloaded.
+- **Boundary Hysteresis**: Separate configurable `load_radius` (default 2) and `unload_radius` (default 3) create a hysteresis buffer zone that eliminates thrashing and load/unload churn along boundary edges.
+- **Deterministic Procedural Terrain Generator**: Continuous, noise-free integer triangle-wave elevation function based on integer coordinates. Bitwise identical contents guaranteed upon chunk unload and reload.
+- **Boundary Neighbor Mesh Invalidation**: When any chunk loads or unloads, all 6 adjacent orthogonal neighbors (+X, -X, +Y, -Y, +Z, -Z) are marked dirty and remeshed. Culls internal shared boundary faces when neighbors appear, and regenerates exposed boundary faces when neighbors unload, preventing visual boundary holes.
+- **Streaming Metrics**: Live metrics tracking `chunks_loaded_this_update`, `chunks_unloaded_this_update`, `total_chunks_loaded`, `total_chunks_unloaded`, `currently_loaded_chunks`, `chunks_meshed_this_update`, and total geometry counts.
+- **OpenGL Viewer Integration**: Scene 4 (Dynamic Streaming World) tracks the free-fly camera in real time, streaming chunks dynamically as the camera flies across positive or negative space. Window title status displays current camera chunk coordinate, loaded chunk count, recent load/unload deltas, active mesher, and total geometry.
+- **Unit Test Suite**: Dedicated `test_chunk_manager` verifying initial load, same-chunk movement, $\pm X/Y/Z$ boundary crossings, deterministic reload, hysteresis band preservation, missing-chunk semantics, neighbor mesh invalidation across all axes and negative space, duplicate load suppression, and deterministic coordinate sets.
+- **Streaming Benchmark Suite**: `bench_chunk_manager` measuring single-threaded update throughput across initial population, single-chunk boundary moves, repeated 10-step crossings, and manual load/unload sequences for both Naive and Greedy meshing.
+
 ---
 
 ## Planned Milestone Roadmap
@@ -79,7 +90,7 @@ Milestone 6 implements a deterministic Greedy Meshing algorithm across all six f
 - [x] **Milestone 4**: Naive Exposed-Face Culling Mesher & Mesh Buffer Data Structure
 - [x] **Milestone 5**: Minimal Visualization Layer & Interactive Camera
 - [x] **Milestone 6**: Greedy Meshing Algorithm & Quad-Reduction Performance Analysis
-- [ ] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
+- [x] **Milestone 7**: Dynamic Chunk Manager & Distance-Based Chunk Streaming
 - [ ] **Milestone 8**: Multithreaded Chunk Generation & Parallel Mesh Extraction
 - [ ] **Milestone 9**: Memory Footprint Optimization & Micro-Benchmarking Suite
 - [ ] **Milestone 10**: Level of Detail (LOD) & Large-World Scale Experiments
@@ -87,12 +98,13 @@ Milestone 6 implements a deterministic Greedy Meshing algorithm across all six f
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
+- **Single-Threaded Streaming**: Milestone 7 streaming executes synchronously on the main thread. Multithreaded chunk generation, asynchronous job queues, and parallel mesh extraction are deferred to Milestone 8.
+- **No Optimizations to Greedy Meshing**: Milestone 7 preserves the exact Milestone 6 greedy meshing algorithm as an evaluation baseline without premature optimization.
+- **No Level of Detail (LOD)**: Chunks stream at full $32^3$ resolution. Hierarchical LOD and distance-based downsampling are deferred to Milestone 10.
+- **No Procedural Noise Libraries / Biomes**: Procedural terrain uses integer math; Perlin/Simplex noise, biomes, and infinite procedural simulation are non-goals.
+- **No Chunk Disk Persistence**: Dynamic chunk management operates entirely in-memory.
 - **Naive Mesher Retained**: The naive exposed-face mesher remains fully supported as the correctness baseline and comparison reference.
-- **No Vertex Sharing**: Greedy merging is evaluated strictly as quad reduction. Indexed vertex sharing is not implemented.
-- **No Chunk Streaming**: Dynamic chunk loading/unloading is deferred to Milestone 7.
-- **No Multithreading / GPU Meshing**: Meshing is evaluated on a single CPU thread; parallel generation is deferred to Milestone 8.
-- **No Structural Fracture Physics**: Dynamic destruction solvers belong to *Project 04: Procedural Destruction Sandbox*.
-- **No Complex Gameplay Engine**: Audio, scripting, and ECS systems are not created here.
+- **No Complex Gameplay Engine**: Audio, scripting, physics solvers, and ECS systems are not created here.
 
 ---
 

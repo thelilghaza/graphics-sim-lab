@@ -130,6 +130,16 @@ void process_input(GLFWwindow* window, float delta_time, SceneManager& scene_mgr
         key_3_pressed = false;
     }
 
+    static bool key_4_pressed = false;
+    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+        if (!key_4_pressed) {
+            scene_mgr.switch_scene(4, g_camera);
+            key_4_pressed = true;
+        }
+    } else {
+        key_4_pressed = false;
+    }
+
     // Mesher switching keys
     static bool key_n_pressed = false;
     if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
@@ -189,7 +199,7 @@ int main(int argc, char** argv) {
             max_test_frames = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--test-all-scenes") == 0) {
             test_all_scenes = true;
-            max_test_frames = 120; // 20 frames per mode/scene combination
+            max_test_frames = 200; // 20 frames per mode/scene combination
         } else if (std::strcmp(argv[i], "--headless") == 0) {
             headless = true;
         }
@@ -210,7 +220,7 @@ int main(int argc, char** argv) {
     const int window_width = 1280;
     const int window_height = 720;
     GLFWwindow* window = glfwCreateWindow(window_width, window_height,
-                                          "Voxel Engine — Milestone 6 Viewer",
+                                          "Voxel Engine — Milestone 7 Viewer",
                                           nullptr, nullptr);
     if (!window) {
         std::cerr << "[GLFW Error] Failed to create OpenGL 3.3 Core window.\n";
@@ -250,18 +260,18 @@ int main(int argc, char** argv) {
     }
 
     SceneManager scene_mgr;
-    scene_mgr.switch_scene(1, g_camera);
+    scene_mgr.switch_scene(4, g_camera); // Default to Milestone 7 Dynamic Streaming World
 
     std::cout << "\nControls:\n";
-    std::cout << "  [W/A/S/D] Move Camera (Horizontal)\n";
-    std::cout << "  [Q/E]     Move Camera (Down/Up)\n";
-    std::cout << "  [Mouse]   Look around (Pitch/Yaw)\n";
-    std::cout << "  [1/2/3]   Switch Test Scene (1: Solid Chunk, 2: Plane, 3: Sphere)\n";
-    std::cout << "  [N]       Switch to Naive Mesher\n";
-    std::cout << "  [G]       Switch to Greedy Mesher\n";
-    std::cout << "  [F]       Toggle Wireframe Mode\n";
-    std::cout << "  [R]       Reset Camera\n";
-    std::cout << "  [ESC]     Exit Viewer\n\n";
+    std::cout << "  [W/A/S/D]   Move Camera (Horizontal)\n";
+    std::cout << "  [Q/E]       Move Camera (Down/Up)\n";
+    std::cout << "  [Mouse]     Look around (Pitch/Yaw)\n";
+    std::cout << "  [1/2/3/4]   Switch Scene (1: Solid, 2: Plane, 3: Sphere, 4: Streaming)\n";
+    std::cout << "  [N]         Switch to Naive Mesher\n";
+    std::cout << "  [G]         Switch to Greedy Mesher\n";
+    std::cout << "  [F]         Toggle Wireframe Mode\n";
+    std::cout << "  [R]         Reset Camera\n";
+    std::cout << "  [ESC]       Exit Viewer\n\n";
 
     auto last_frame_time = std::chrono::high_resolution_clock::now();
     double fps_timer = 0.0;
@@ -280,16 +290,30 @@ int main(int argc, char** argv) {
                 scene_mgr.set_mesher(MesherType::Naive);
             } else if (total_frames == 40) {
                 scene_mgr.set_mesher(MesherType::Greedy);
-                scene_mgr.switch_scene(2, g_camera);
+                scene_mgr.switch_scene(1, g_camera);
             } else if (total_frames == 60) {
-                scene_mgr.set_mesher(MesherType::Naive);
+                scene_mgr.switch_scene(2, g_camera);
             } else if (total_frames == 80) {
-                scene_mgr.set_mesher(MesherType::Greedy);
                 scene_mgr.switch_scene(3, g_camera);
             } else if (total_frames == 100) {
+                scene_mgr.switch_scene(4, g_camera);
+            } else if (total_frames == 120) {
+                // Positive boundary crossing
+                g_camera.reset(Vec3(40.0f, 25.0f, 40.0f), -90.0f, -20.0f);
+            } else if (total_frames == 140) {
+                // Negative boundary crossing
+                g_camera.reset(Vec3(-40.0f, 25.0f, -40.0f), -90.0f, -20.0f);
+            } else if (total_frames == 160) {
+                // Wireframe mode
+                g_wireframe = !g_wireframe;
+                glPolygonMode(GL_FRONT_AND_BACK, g_wireframe ? GL_LINE : GL_FILL);
+            } else if (total_frames == 180) {
                 scene_mgr.set_mesher(MesherType::Naive);
             }
         }
+
+        // Update dynamic scenes (e.g. streaming around camera in Scene 4)
+        scene_mgr.update(g_camera);
 
         // Render pass
         int display_w = 0, display_h = 0;
@@ -317,8 +341,14 @@ int main(int argc, char** argv) {
             const SceneStats& stats = scene_mgr.get_current_stats();
             std::stringstream title;
             title << "Voxel Engine | " << stats.name
-                  << " | Mesher: [" << mesher_type_name(stats.mesher) << "]"
-                  << " | Quads/Faces: " << stats.face_count
+                  << " | Mesher: [" << mesher_type_name(stats.mesher) << "]";
+            if (scene_mgr.get_current_scene_index() == 4) {
+                title << " | CamChunk: (" << stats.cam_chunk.x << "," << stats.cam_chunk.y << "," << stats.cam_chunk.z << ")"
+                      << " | Chunks: " << stats.chunk_count << " (+" << stats.chunks_loaded_last_update << "/-" << stats.chunks_unloaded_last_update << ")";
+            } else {
+                title << " | Chunks: " << stats.chunk_count;
+            }
+            title << " | Quads/Faces: " << stats.face_count
                   << " | Verts: " << stats.vertex_count
                   << " | FPS: " << std::fixed << std::setprecision(1) << fps;
             glfwSetWindowTitle(window, title.str().c_str());
@@ -336,6 +366,7 @@ int main(int argc, char** argv) {
     const SceneStats& final_stats = scene_mgr.get_current_stats();
     std::cout << "[Viewer Shutdown] Active Scene: " << final_stats.name
               << " | Mesher: [" << mesher_type_name(final_stats.mesher) << "]"
+              << " | Chunks: " << final_stats.chunk_count
               << " | Quads/Faces: " << final_stats.face_count
               << " | Verts: " << final_stats.vertex_count
               << " | Total Rendered Frames: " << total_frames << "\n";

@@ -2,6 +2,7 @@
 #include "voxel_lab/greedy_mesher.hpp"
 #include "voxel_lab/naive_mesher.hpp"
 #include "voxel_lab/test_worlds.hpp"
+
 #include <iostream>
 
 namespace voxel_lab {
@@ -23,8 +24,8 @@ SceneManager::SceneManager() {
 }
 
 bool SceneManager::switch_scene(int scene_index, Camera& camera) {
-    if (scene_index < 1 || scene_index > 3) {
-        std::cerr << "[SceneManager] Invalid scene index: " << scene_index << " (valid: 1, 2, 3)\n";
+    if (scene_index < 1 || scene_index > 4) {
+        std::cerr << "[SceneManager] Invalid scene index: " << scene_index << " (valid: 1, 2, 3, 4)\n";
         return false;
     }
     current_scene_index = scene_index;
@@ -36,12 +37,32 @@ bool SceneManager::switch_scene(int scene_index, Camera& camera) {
     return true;
 }
 
+void SceneManager::update(const Camera& camera) {
+    if (current_scene_index == 4) {
+        bool changed = chunk_manager.update_streaming(camera.get_position());
+        if (changed) {
+            sync_streaming_gpu_meshes();
+        }
+    }
+}
+
 void SceneManager::set_mesher(MesherType mesher) {
     if (current_mesher == mesher) {
         return;
     }
     current_mesher = mesher;
-    rebuild_current_scene(false, nullptr);
+    if (current_scene_index == 4) {
+        chunk_manager.set_mesher_type(mesher);
+        for (const auto& c : chunk_manager.get_recently_updated_mesh_coords()) {
+            const MeshData* m = chunk_manager.get_mesh(c);
+            if (m) {
+                chunk_gl_meshes[c].upload(*m);
+            }
+        }
+        sync_streaming_gpu_meshes();
+    } else {
+        rebuild_current_scene(false, nullptr);
+    }
     std::cout << "[SceneManager] Switched mesher to: [" << mesher_type_name(current_mesher) << "]"
               << " | Scene: " << current_stats.name
               << " | Faces/Quads: " << current_stats.face_count
@@ -59,10 +80,14 @@ void SceneManager::rebuild_current_scene(bool reset_camera, Camera* camera) {
         case 3:
             build_cross_chunk_sphere_scene(reset_camera, camera);
             break;
+        case 4:
+            build_streaming_scene(reset_camera, camera);
+            break;
     }
 }
 
 void SceneManager::build_solid_chunk_scene(bool reset_camera, Camera* camera) {
+    chunk_gl_meshes.clear();
     WorldGrid world;
     generate_solid_world(world, WorldCoord(0, 0, 0), WorldCoord(31, 31, 31), Voxel(1, 0));
 
@@ -77,6 +102,9 @@ void SceneManager::build_solid_chunk_scene(bool reset_camera, Camera* camera) {
     current_stats.vertex_count = mesh.vertex_count();
     current_stats.index_count = mesh.index_count();
     current_stats.base_color = Vec3(0.75f, 0.78f, 0.82f); // Slate gray
+    current_stats.cam_chunk = ChunkCoord(0, 0, 0);
+    current_stats.chunks_loaded_last_update = 0;
+    current_stats.chunks_unloaded_last_update = 0;
 
     if (reset_camera && camera) {
         camera->reset(Vec3(48.0f, 48.0f, 64.0f), -120.0f, -25.0f);
@@ -84,6 +112,7 @@ void SceneManager::build_solid_chunk_scene(bool reset_camera, Camera* camera) {
 }
 
 void SceneManager::build_plane_world_scene(bool reset_camera, Camera* camera) {
+    chunk_gl_meshes.clear();
     WorldGrid world;
     generate_plane_world(world, WorldCoord(0, 0, 0), WorldCoord(31, 31, 31), 15, PlaneAxis::Y, Voxel(3, 0));
 
@@ -98,6 +127,9 @@ void SceneManager::build_plane_world_scene(bool reset_camera, Camera* camera) {
     current_stats.vertex_count = mesh.vertex_count();
     current_stats.index_count = mesh.index_count();
     current_stats.base_color = Vec3(0.35f, 0.75f, 0.40f); // Terrain green
+    current_stats.cam_chunk = ChunkCoord(0, 0, 0);
+    current_stats.chunks_loaded_last_update = 0;
+    current_stats.chunks_unloaded_last_update = 0;
 
     if (reset_camera && camera) {
         camera->reset(Vec3(48.0f, 36.0f, 64.0f), -120.0f, -20.0f);
@@ -105,6 +137,7 @@ void SceneManager::build_plane_world_scene(bool reset_camera, Camera* camera) {
 }
 
 void SceneManager::build_cross_chunk_sphere_scene(bool reset_camera, Camera* camera) {
+    chunk_gl_meshes.clear();
     WorldGrid world;
     WorldCoord center(31, 31, 31);
     int radius = 12;
@@ -149,21 +182,83 @@ void SceneManager::build_cross_chunk_sphere_scene(bool reset_camera, Camera* cam
     current_stats.vertex_count = combined_mesh.vertex_count();
     current_stats.index_count = combined_mesh.index_count();
     current_stats.base_color = Vec3(0.92f, 0.72f, 0.28f); // Golden amber
+    current_stats.cam_chunk = ChunkCoord(0, 0, 0);
+    current_stats.chunks_loaded_last_update = 0;
+    current_stats.chunks_unloaded_last_update = 0;
 
     if (reset_camera && camera) {
         camera->reset(Vec3(65.0f, 55.0f, 75.0f), -125.0f, -20.0f);
     }
 }
 
+void SceneManager::build_streaming_scene(bool reset_camera, Camera* camera) {
+    chunk_gl_meshes.clear();
+    current_gl_mesh.destroy();
+
+    chunk_manager.set_mesher_type(current_mesher);
+    Vec3 cam_pos(0.0f, 25.0f, 50.0f);
+
+    if (reset_camera && camera) {
+        camera->reset(cam_pos, -90.0f, -20.0f);
+    }
+
+    chunk_manager.update_streaming(cam_pos, true);
+
+    for (const auto& [coord, mesh] : chunk_manager.get_all_meshes()) {
+        chunk_gl_meshes[coord].upload(mesh);
+    }
+
+    current_stats.name = "Scene 4: Dynamic Streaming World";
+    current_stats.mesher = current_mesher;
+    current_stats.base_color = Vec3(0.42f, 0.78f, 0.48f); // Terrain green
+    sync_streaming_gpu_meshes();
+}
+
+void SceneManager::sync_streaming_gpu_meshes() {
+    for (const auto& c : chunk_manager.get_recently_unloaded_mesh_coords()) {
+        chunk_gl_meshes.erase(c);
+    }
+    for (const auto& c : chunk_manager.get_recently_updated_mesh_coords()) {
+        const MeshData* m = chunk_manager.get_mesh(c);
+        if (m) {
+            chunk_gl_meshes[c].upload(*m);
+        }
+    }
+
+    const auto& metrics = chunk_manager.get_metrics();
+    current_stats.chunk_count = chunk_manager.loaded_chunk_count();
+    current_stats.solid_voxel_count = chunk_manager.get_world().count_solid_voxels();
+    current_stats.face_count = metrics.total_faces_or_quads;
+    current_stats.vertex_count = metrics.total_vertices;
+    current_stats.index_count = metrics.total_indices;
+    current_stats.cam_chunk = chunk_manager.get_camera_chunk();
+    current_stats.chunks_loaded_last_update = metrics.chunks_loaded_this_update;
+    current_stats.chunks_unloaded_last_update = metrics.chunks_unloaded_this_update;
+    current_stats.total_chunks_loaded = metrics.total_chunks_loaded;
+    current_stats.total_chunks_unloaded = metrics.total_chunks_unloaded;
+}
+
 void SceneManager::render(const GLShader& shader, const Mat4& view, const Mat4& proj) const {
     shader.use();
-    shader.set_mat4("uModel", Mat4::identity());
     shader.set_mat4("uView", view);
     shader.set_mat4("uProjection", proj);
     shader.set_vec3("uLightDir", Vec3(0.6f, 0.8f, 0.4f));
     shader.set_vec3("uBaseColor", current_stats.base_color);
 
-    current_gl_mesh.draw();
+    if (current_scene_index == 4) {
+        for (const auto& [coord, mesh] : chunk_gl_meshes) {
+            Mat4 model = Mat4::translate(Vec3(
+                static_cast<float>(coord.x * CHUNK_DIM),
+                static_cast<float>(coord.y * CHUNK_DIM),
+                static_cast<float>(coord.z * CHUNK_DIM)
+            ));
+            shader.set_mat4("uModel", model);
+            mesh.draw();
+        }
+    } else {
+        shader.set_mat4("uModel", Mat4::identity());
+        current_gl_mesh.draw();
+    }
 }
 
 } // namespace voxel_lab

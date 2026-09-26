@@ -6,6 +6,19 @@
 
 namespace voxel_lab {
 
+enum class MesherType {
+    Naive,
+    Greedy
+};
+
+inline const char* mesher_type_name(MesherType type) noexcept {
+    switch (type) {
+        case MesherType::Naive: return "Naive";
+        case MesherType::Greedy: return "Greedy";
+    }
+    return "Unknown";
+}
+
 struct MeshVertex {
     float x{0.0f};
     float y{0.0f};

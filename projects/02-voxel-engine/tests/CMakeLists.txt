@@ -17,4 +17,5 @@ add_voxel_test(test_voxel_editing "test_voxel_editing.cpp;../src/chunk.cpp;../sr
 add_voxel_test(test_test_worlds "test_test_worlds.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp")
 add_voxel_test(test_naive_mesher "test_naive_mesher.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp")
 add_voxel_test(test_greedy_mesher "test_greedy_mesher.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp")
+add_voxel_test(test_chunk_manager "test_chunk_manager.cpp;../src/chunk.cpp;../src/world_grid.cpp;../src/test_worlds.cpp;../src/naive_mesher.cpp;../src/greedy_mesher.cpp;../src/chunk_manager.cpp")
 add_voxel_test(test_voxel_camera "test_voxel_camera.cpp;../src/camera.cpp")

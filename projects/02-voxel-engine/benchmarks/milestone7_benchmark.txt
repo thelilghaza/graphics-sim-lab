@@ -1,0 +1,22 @@
+========================================================================================================
+ PROJECT 02 — VOXEL ENGINE: MILESTONE 7 CHUNK MANAGER STREAMING BENCHMARK REPORT
+========================================================================================================
+
+Environment & Configuration:
+  Build Configuration: Release
+  Compiler:            MSVC 1951
+  Timing Source:       std::chrono::high_resolution_clock
+
+Dynamic Streaming Benchmark Summary:
+--------------------------------------------------------------------------------------------------------------------------------
+Workload Description                      Mesher       Avg Time (us)     Time (ms) Chunks Loaded Chunks Unload      ResidentTotal Faces/Quads
+--------------------------------------------------------------------------------------------------------------------------------
+Initial Population (r=2, 125 chunks)      Naive            313466.22        313.47           125             0           125          114848
+Initial Population (r=2, 125 chunks)      Greedy           700025.72        700.03           125             0           125           20133
+Move Camera by 1 Chunk (+X)               Naive            138623.06        138.62            25             0           150          131152
+Move Camera by 1 Chunk (+X)               Greedy           310458.21        310.46            25             0           150           24130
+Repeated Boundary Crossings (10 steps)    Naive           2064711.25       2064.71           375           225           150          130544
+Repeated Boundary Crossings (10 steps)    Greedy          4638226.28       4638.23           375           225           150           24120
+Manual Load/Unload Sequence (30 chunks)   Naive             92452.88         92.45            30            30             0               0
+Manual Load/Unload Sequence (30 chunks)   Greedy           267640.29        267.64            30            30             0               0
+========================================================================================================
