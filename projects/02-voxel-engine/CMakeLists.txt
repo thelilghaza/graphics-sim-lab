@@ -4,6 +4,7 @@ project(voxel-engine LANGUAGES CXX)
 
 add_library(voxel_engine STATIC
   src/chunk.cpp
+  src/world_grid.cpp
 )
 
 target_include_directories(voxel_engine PUBLIC

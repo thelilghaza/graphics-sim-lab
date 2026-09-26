@@ -11,3 +11,5 @@ endfunction()
 
 add_voxel_test(test_voxel test_voxel.cpp)
 add_voxel_test(test_chunk "test_chunk.cpp;../src/chunk.cpp")
+add_voxel_test(test_coordinates test_coordinates.cpp)
+add_voxel_test(test_world_accessor "test_world_accessor.cpp;../src/chunk.cpp;../src/world_grid.cpp")

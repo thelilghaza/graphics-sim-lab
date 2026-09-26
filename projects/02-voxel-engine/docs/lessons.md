@@ -19,6 +19,21 @@ Observations, architecture trade-offs, performance analysis, and engineering dec
 
 ---
 
+## Milestone 2 Implementation Observations
+
+1. **Integer-Only Floor Division for Negative Coordinates**:
+   - Standard C++ integer division `W / 32` truncates toward zero, causing negative coordinates in range $[-31, -1]$ to produce `chunk = 0` instead of `chunk = -1`.
+   - Implementing explicit integer floor division `floor_div_32(W) = (W < 0) ? ((W - 31) / 32) : (W / 32)` and local coordinate modulo `floor_mod_32(W) = ((W % 32) + 32) % 32` ensures $W = C \times 32 + L$ with $0 \le L < 32$ across all positive and negative integer space.
+
+2. **Abstract `WorldAccessor` & Concrete `WorldGrid`**:
+   - Decoupling world voxel queries behind an abstract `WorldAccessor` interface allows future meshers and raycasters to read neighboring voxels across chunk boundaries without coupling to specific chunk storage backends.
+   - `WorldGrid` uses `std::map<ChunkCoord, Chunk>` as a simple, deterministic in-memory chunk map suitable for unit testing and cross-chunk validation without introducing premature streaming architecture.
+
+3. **Missing-Chunk Voxel Semantics**:
+   - `WorldGrid::get_voxel(w)` returns default air `Voxel(0,0)` for missing chunks to simplify mesher boundary queries, while `get_voxel(w, out)` returns `false` to allow callers to distinguish unpopulated chunks from explicitly stored air voxels.
+
+---
+
 ## Initial Design Decisions & Architecture Trade-offs
 
 1. **Flat Contiguous 1D Chunk Array Selection**:
