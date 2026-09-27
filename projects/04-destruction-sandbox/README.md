@@ -1,6 +1,6 @@
 # Project 04: Procedural Destruction Sandbox
 
-*Status: Milestone 2 Complete (Voronoi 2D/3D Partitioning & Dynamic Mesh Geometry Fracturing)*
+*Status: Milestone 3 Complete (Collision Detection & Contact Manifold Generation)*
 
 ---
 
@@ -16,7 +16,7 @@ Building upon the foundations established in previous projects—ray-geometry ma
 
 1. **Deterministic Math & Kinematics Foundation (Milestone 1)**: Provide robust 2D/3D vectors, 3x3 matrices, quaternions, rigid transforms, diagonal inertia tensors, rigid body state, force/torque accumulators, and Symplectic Euler integration.
 2. **Procedural Geometry Fracturing (Milestone 2)**: Implement 2D/3D Voronoi partitioning and planar cell clipping to procedurally shatter convex polyhedral meshes into realistic fragment shards with exact mass and volume conservation.
-3. **Collision Detection & Manifold Generation**: Build a two-stage collision pipeline consisting of broadphase dynamic AABB tree spatial indexing and narrowphase GJK/EPA/SAT contact manifold extraction (contact points, normals, penetration depths).
+3. **Collision Detection & Contact Manifold Generation (Milestone 3)**: Build a two-stage collision pipeline consisting of broadphase dynamic AABB tree spatial indexing and narrowphase GJK/EPA/SAT contact manifold extraction (contact points, normals, penetration depths).
 4. **Impulse-Based Constraint Solver**: Develop a Sequential Impulse / Projected Gauss-Seidel solver resolving contact response, linear/angular friction, restitution, and Baumgarte position stabilization without energy gain or jitter.
 5. **Structural Connectivity Graph**: Evaluate adhesive bonds and stress propagation across adjacent fragments to trigger progressive structural collapse when critical load thresholds are exceeded.
 6. **Interactive Portfolio Demonstration**: Integrate subsystems into a real-time interactive 3D application demonstrating projectile impact, procedural mesh fracture, structural collapse, and debris stabilization.
@@ -43,10 +43,12 @@ Building upon the foundations established in previous projects—ray-geometry ma
 - **Voronoi Bisector Half-Space**: Pairwise bisector plane between site $\mathbf{p}_i$ and competing site $\mathbf{p}_j$:
   $$\mathbf{n} = \frac{\mathbf{p}_j - \mathbf{p}_i}{\|\mathbf{p}_j - \mathbf{p}_i\|}, \quad \mathbf{m} = \frac{1}{2}(\mathbf{p}_i + \mathbf{p}_j), \quad d = -\mathbf{n} \cdot \mathbf{m}$$
   Points $\mathbf{x}$ inside cell $i$ satisfy $\mathbf{n} \cdot \mathbf{x} + d \le 0$. Opposite cell $j$ uses opposite plane $-\mathbf{n}$ and $-d$.
-- **Convex Polyhedron Volume & Centroid**: Tetrahedral fan decomposition from interior reference point $\mathbf{r}$:
-  $$V = \frac{1}{6} \sum (\mathbf{v}_0 - \mathbf{r}) \cdot \left((\mathbf{v}_k - \mathbf{r}) \times (\mathbf{v}_{k+1} - \mathbf{r})\right)$$
-  $$\mathbf{C} = \frac{1}{V} \sum V_{tet} \mathbf{c}_{tet}, \quad \mathbf{c}_{tet} = \frac{1}{4}(\mathbf{r} + \mathbf{v}_0 + \mathbf{v}_k + \mathbf{v}_{k+1})$$
-- **Mass Assignment**: $m_{shard} = \text{density} \times V_{shard}$. Sum of shard volumes/masses conserves source volume/mass ($\sum V_{shard} \approx V_{source}$).
+- **Collision Pipeline**:
+  - **Broadphase**: `DynamicAabbTree` surface-area cost binary tree emitting canonical overlapping candidate pairs $(A, B)$.
+  - **Narrowphase GJK**: Simplex-based convex intersection test determining intersection status.
+  - **Narrowphase EPA**: Expanding Polytope Algorithm determining exact penetration depth $d$ and normal $\mathbf{n}$ (pointing from A to B).
+  - **Narrowphase SAT**: Independent Separating Axis Theorem cross-validation path.
+  - **Contact Manifolds**: 4-point reduced manifolds maximizing contact polygon area coverage.
 
 ---
 
@@ -64,7 +66,7 @@ projects/04-destruction-sandbox/
 │       ├── math/               # Vec2, Vec3, Vec4, Mat3, Quat, Transform, MathUtils
 │       ├── dynamics/           # RigidBody state, InertiaTensor, Integrator, PhysicsWorld
 │       ├── fracture/           # Plane, Polygon2D, Voronoi2D, Polyhedron, Clipper3D, Volume, Sites, Shard, Validator, Voronoi3D, ObjExporter
-│       ├── collision/          # Broadphase AABB tree, narrowphase GJK/EPA (Planned M3)
+│       ├── collision/          # Aabb, Collider, DynamicAabbTree, Support, Gjk, Epa, Sat, ContactManifold, Narrowphase
 │       ├── solver/             # Sequential impulse solver, friction, PGS (Planned M4)
 │       ├── graph/              # Structural connectivity graph, stress (Planned M4)
 │       └── render/             # Scene visualizer and interactive camera (Planned M5)
@@ -73,7 +75,9 @@ projects/04-destruction-sandbox/
 │   ├── test_dynamics_math.cpp  # Milestone 1 math and dynamics unit tests
 │   ├── val_dynamics_headless.cpp # Milestone 1 headless regression executable
 │   ├── test_fracture_geometry.cpp # Milestone 2 2D/3D Voronoi fracture unit tests
-│   └── demo_fracture.cpp       # Milestone 2 headless OBJ export demo
+│   ├── demo_fracture.cpp       # Milestone 2 headless OBJ export demo
+│   ├── test_collision.cpp      # Milestone 3 collision detection unit tests
+│   └── demo_collision.cpp      # Milestone 3 headless collision demo
 ├── benchmarks/                 # Micro-benchmarks for fracture and physics performance
 └── assets/                     # Demo scene configurations and mesh presets
 ```
@@ -96,10 +100,11 @@ projects/04-destruction-sandbox/
 - Implemented topological closed-manifold edge validator (`MeshValidator`), Wavefront OBJ exporter (`ObjExporter`), and headless fracture demo (`demo_fracture`).
 - Verified volume and mass conservation ($0.0000\%$ relative error) across symmetric, multi-site, and translated source boxes (`test_fracture_geometry`).
 
-### Milestone 3: Collision Detection & Contact Manifold Generation (PLANNED)
-- Implement dynamic AABB tree broadphase spatial indexing for fast pair pruning.
-- Implement narrowphase convex collision algorithms (GJK/EPA or SAT) generating contact manifolds (points, normal, depth).
-- Verify contact manifold accuracy across primitive shapes (cubes, spheres, polyhedra).
+### Milestone 3: Collision Detection & Contact Manifold Generation (COMPLETE)
+- Implemented 3D AABBs, Box and ConvexPolyhedron colliders (`Collider`), and dynamic AABB tree broadphase (`DynamicAabbTree`).
+- Implemented Minkowski difference support mappings (`support_minkowski`), GJK convex intersection engine (`Gjk`), EPA penetration depth & normal engine (`Epa`), and SAT cross-validation engine (`Sat`).
+- Implemented 4-point reduced contact manifold generation (`ContactManifold`, `Narrowphase`) and headless collision demo (`demo_collision`).
+- Verified zero false negatives, GJK vs SAT agreement, closed edge-manifold shard collisions, and 60-collider broadphase stress testing (`test_collision`).
 
 ### Milestone 4: Sequential Impulse Constraint Solver & Structural Graph (PLANNED)
 - Implement Projected Gauss-Seidel / Sequential Impulse solver for contacts, friction, and Baumgarte position stabilization.
@@ -124,7 +129,7 @@ projects/04-destruction-sandbox/
 
 ## Verification & Quality Discipline
 
-- **Correctness First**: All algorithms verified with automated CTest suites (`test_dynamics_math`, `val_dynamics_headless`, `test_fracture_geometry`, `demo_fracture`).
-- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). State signature checksum validation (`0x40F6B6A4`).
-- **Volume & Mass Conservation**: $0.0000\%$ relative conservation error on 3D Voronoi partitioning tests.
+- **Correctness First**: All algorithms verified with automated CTest suites (`test_dynamics_math`, `val_dynamics_headless`, `test_fracture_geometry`, `demo_fracture`, `test_collision`, `demo_collision`).
+- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). Collision checksum validation (`0xA2F70000`).
+- **Zero Energy Drift**: Physics integration validated against analytical energy and momentum conservation equations.
 - **No Emojis**: Strict enforcement of clean professional documentation across all source files, headers, CLI logs, and reports.

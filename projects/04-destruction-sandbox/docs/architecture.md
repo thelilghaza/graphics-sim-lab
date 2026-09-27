@@ -56,10 +56,13 @@ The architecture is divided into seven decoupled core subsystems:
 - **Mesh Topology Validator**: `MeshValidator` verifying structural, geometric, and closed-manifold edge topological invariants (every undirected edge shared by exactly 2 faces).
 - **Mesh Exporter**: `ObjExporter` outputting Wavefront OBJ geometry files containing separate shard groups (`g shard_XX`) for external visualization.
 
-### 2.4 Collision Subsystem (`destruction::collision`) — Planned M3
-- **Broadphase Spatial Indexing**: Dynamic AABB tree (Bounding Volume Hierarchy) providing $O(N \log N)$ pair pruning and fast bounding box overlap queries.
-- **Narrowphase Collision Detection**: Gilbert-Johnson-Keerthi (GJK) distance algorithm paired with Expanding Polytope Algorithm (EPA) or Separating Axis Theorem (SAT) to generate exact contact points, contact normals, and penetration depths.
-- **Contact Manifold Reduction**: Merges close contact points into stable 4-point contact manifolds per colliding body pair to ensure multi-point resting contact.
+### 2.4 Collision Subsystem (`destruction::collision`) — Implemented M3
+- **Bounding Boxes**: `Aabb` managing 3D axis-aligned bounds, extents, center, surface area, and transformation under rigid transforms.
+- **Collider Abstraction**: `Collider` wrapping Box and ConvexPolyhedron geometries with local/world transforms, local/world AABBs, and support mapping functions `get_support_world`.
+- **Broadphase Spatial Indexing**: `DynamicAabbTree` surface-area cost binary tree emitting canonical overlapping candidate pairs $(A, B)$ with zero duplicate generation.
+- **Narrowphase GJK & EPA Engines**: `Gjk` evaluating 3D Minkowski difference simplexes to detect convex intersection; `Epa` expanding the polytope to derive exact penetration depth $d$ and normal $\mathbf{n}$ (pointing from A to B).
+- **Narrowphase SAT Cross-Validation**: `Sat` evaluating projections across face normals and edge cross-products for independent algorithm cross-checks.
+- **Contact Manifolds**: `ContactManifold` and `Narrowphase` constructing reduced 4-point contact manifolds maximizing contact patch area coverage.
 
 ### 2.5 Solver Subsystem (`destruction::solver`) — Planned M4
 - **Sequential Impulse Solver**: Projected Gauss-Seidel (PGS) iterative solver executing velocity impulses to satisfy non-penetration constraints.
@@ -94,12 +97,12 @@ The frame execution loop follows a strict step order:
 [Physics Simulation Step (Fixed dt = 1/60s)]
   │
   ├─► 1. Apply Gravity & External Forces
-  ├─► 2. Broadphase AABB Tree Update & Pair Pruning
-  ├─► 3. Narrowphase GJK/EPA Contact Manifold Generation
-  ├─► 4. Evaluate Structural Connectivity Graph Stress & Break Overloaded Edges
-  ├─► 5. Sequential Impulse Solver Iterations (Velocity & Friction Impulses)
-  ├─► 6. Integrate Positions & Orientations (Symplectic Euler)
-  └─► 7. Baumgarte Position Correction & Sleep Deactivation
+  ├─► 2. Broadphase AABB Tree Update & Pair Pruning (Implemented M3)
+  ├─► 3. Narrowphase GJK/EPA Contact Manifold Generation (Implemented M3)
+  ├─► 4. Evaluate Structural Connectivity Graph Stress & Break Overloaded Edges (Planned M4)
+  ├─► 5. Sequential Impulse Solver Iterations (Velocity & Friction Impulses) (Planned M4)
+  ├─► 6. Integrate Positions & Orientations (Symplectic Euler) (Implemented M1)
+  └─► 7. Baumgarte Position Correction & Sleep Deactivation (Planned M4)
          │
          ▼
 [Render / Visualizer Frame Output]
@@ -111,7 +114,7 @@ The frame execution loop follows a strict step order:
 
 To ensure predictable determinism while utilizing multi-core hardware, Project 04 adopts a staged threading architecture:
 
-1. **Deterministic Single-Threaded Step (Baseline / Implemented M1 & M2)**: Core physics integration and Voronoi cell geometry partitioning run sequentially on a single thread by default to establish ground-truth physical reproducibility.
+1. **Deterministic Single-Threaded Step (Baseline / Implemented M1, M2 & M3)**: Core physics integration, Voronoi cell geometry partitioning, dynamic AABB tree broadphase, and GJK/EPA narrowphase run sequentially on a single thread by default to establish ground-truth physical reproducibility.
 2. **Parallel Fracture Task Dispatch**: Voronoi planar clipping of individual fragments during a fracture event is embarrassingly parallel. Clipping tasks will be dispatched to worker threads using the lock-free SPSC/MPMC queues developed in Project 03.
 3. **Parallel Broadphase & Narrowphase**: Broadphase tree updates and independent pair narrowphase GJK queries will be partitioned across worker threads, gathering contact manifolds into thread-local buffers before merging.
 
@@ -121,7 +124,7 @@ To ensure predictable determinism while utilizing multi-core hardware, Project 0
 
 Project 04 enforces strict memory ownership boundaries to eliminate dynamic heap allocation overhead during physics updates:
 
-- **Scene Container Ownership**: `PhysicsWorld` owns all `RigidBody` instances, mesh geometries, and structural graph nodes via contiguous vectors (`std::vector<RigidBody>`).
+- **Scene Container Ownership**: `PhysicsWorld` owns all `RigidBody` instances, mesh geometries, colliders, and structural graph nodes via contiguous vectors (`std::vector<RigidBody>`).
 - **Transient Contact Allocation**: Temporary contact points and manifold pairs generated during narrowphase collision detection are allocated from a thread-local `LinearArena` (bump allocator from Project 03). The arena resets monotonically at the end of each frame in $O(1)$ time.
 - **Mesh Buffer Recycling**: Fragment vertex and index buffers are managed via a preallocated block pool to prevent heap fragmentation when objects break repeatedly.
 
@@ -143,7 +146,7 @@ $$q_{t+\Delta t} = \text{normalize}\left(q_t + \frac{1}{2} \omega_q q_t \Delta t
 ### 6.2 Determinism Guarantees
 - **Fixed Timestep**: Physics updates operate strictly on a fixed sub-step $\Delta t = 1/60\text{ s}$ ($16.66\text{ ms}$).
 - **Random Seed Isolation**: Voronoi generator sites use explicitly seeded pseudo-random number generators (PRNG) to ensure identical fracture patterns across test runs.
-- **State Signature Checksum**: Verified via `val_dynamics_headless` (`0x40F6B6A4`).
+- **Collision Signature Checksum**: Verified via `demo_collision` (`0xA2F70000`).
 
 ---
 
@@ -160,9 +163,11 @@ Verification follows a multi-layer testing protocol across CTest suites:
    - Conservation of mass: Sum of fragment masses equals original unbroken body mass ($0.0000\%$ error).
    - Volume preservation: Sum of Voronoi fragment volumes equals original polyhedral mesh volume ($0.0000\%$ error).
    - Watertight mesh validation: Every generated shard mesh is closed and manifold (`MeshValidator`).
-3. **Collision & Manifold Verification (`test_destruction_collision` - Planned M3)**:
+3. **Collision & Manifold Verification (`test_collision` - PASSED)**:
    - GJK distance accuracy for non-overlapping convex objects.
    - EPA penetration depth and contact normal accuracy for interpenetrating boxes.
+   - SAT cross-validation agreement on box-box and box-polyhedron colliders.
+   - 4-point reduced manifold area coverage and zero false-negative broadphase pruning.
 4. **Constraint Solver Stability Verification (`test_destruction_solver` - Planned M4)**:
    - Resting stack test: A 5-box vertical stack must remain stable under gravity for 1,000 steps with total displacement $< 1.0\text{ mm}$.
    - Static friction test: A block resting on an inclined plane must remain stationary up to the critical slope angle $\theta = \arctan(\mu)$.

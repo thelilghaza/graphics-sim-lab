@@ -57,12 +57,26 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ---
 
-## 4. Explicit Scope Boundaries & Non-Goals
+## 4. Milestone 3 Engineering Lessons & Design Decisions
+
+### 4.1 Two-Step Tree Recursion for Broadphase Candidate Pair Generation
+- **Lesson**: Traversing a dynamic AABB binary tree by naïvely pushing subtrees can generate redundant or duplicate candidate pair checks. In M3, `DynamicAabbTree` separates broadphase pair generation into two clean recursive functions: `generate_pairs_recursive(node)` (recursing on left/right children and calling `query_pair(left, right)`) and `query_pair_recursive(na, nb)` (pruning non-overlapping AABBs and generating canonical pairs $(A, B)$ with $A < B$). This guarantees zero duplicate pair generation and zero missed broadphase overlaps.
+
+### 4.2 GJK Simplex Evolution & Termination Protection
+- **Lesson**: Unbounded GJK iterations can cycle infinitely when floating-point precision limits cause support point calculations to stall near the origin. In M3, `Gjk` enforces a hard iteration cap (`GJK_MAX_ITERATIONS = 64`), checks direction vectors against $\epsilon = 10^{-6}$, and terminates early if new support points fail to advance past the origin in search direction $\mathbf{d}$.
+
+### 4.3 EPA Polytope Expansion & Fallback SAT Cross-Validation
+- **Lesson**: Expanding Polytope Algorithm (EPA) requires a valid non-degenerate 3D simplex (tetrahedron) from GJK. When GJK detects shallow/touching contacts with degenerate initial simplexes, EPA iteration can stagnate. In M3, `Narrowphase` utilizes EPA as the primary penetration engine, but seamlessly falls back to `Sat` (Separating Axis Theorem) if EPA numerical convergence fails. Unit tests (`test_collision`) cross-validate GJK/EPA against SAT, confirming identical collision classification and matching penetration depths within $10^{-2}\text{ m}$ tolerance.
+
+### 4.4 4-Point Reduced Contact Manifolds
+- **Lesson**: Storing dozens of contact points per face-face collision increases constraint solver complexity without improving stability. In M3, `ContactManifold::reduce_to_max_4()` reduces candidate contact point sets to a maximum of 4 points by selecting: (1) deepest penetration point, (2) point furthest from point 1, (3) point maximizing triangle area with points 1 and 2, and (4) point maximizing 3D distance/area with points 1, 2, 3. This maximizes contact patch stability while maintaining a fixed solver bound.
+
+---
+
+## 5. Explicit Scope Boundaries & Non-Goals
 
 To maintain strict architectural focus and engineering quality, the following features are explicitly deferred or placed out of scope for Project 04:
 
-- **Collision Detection & Contact Manifolds (GJK/EPA/SAT)**: Deferred to **Milestone 3**.
-- **Broadphase Dynamic AABB Tree**: Deferred to **Milestone 3**.
 - **Sequential Impulse Constraint Solver & Friction**: Deferred to **Milestone 4**.
 - **Structural Connectivity Graph Stress Analysis**: Deferred to **Milestone 4**.
 - **Interactive 3D OpenGL Demo Application**: Deferred to **Milestone 5**.
