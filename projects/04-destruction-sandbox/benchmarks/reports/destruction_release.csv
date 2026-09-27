@@ -1,0 +1,14 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"voronoi_fracture","4_sites","Debug","MSVC 1951","x86_64","Windows",3,20,1012.520,941.300,139.145,906.700,1371.200,3951,0.00
+"voronoi_fracture","8_sites","Debug","MSVC 1951","x86_64","Windows",3,20,4982.430,4956.050,239.306,4637.200,5488.500,1606,0.00
+"voronoi_fracture","16_sites","Debug","MSVC 1951","x86_64","Windows",3,20,21687.965,21734.650,275.396,21132.300,22291.400,738,0.00
+"voronoi_fracture","32_sites","Debug","MSVC 1951","x86_64","Windows",3,20,109581.190,105538.850,9092.155,101047.800,133387.100,292,0.00
+"broadphase_tree","16_colliders","Debug","MSVC 1951","x86_64","Windows",5,50,62.076,55.600,12.963,55.300,98.800,257749,0.00
+"broadphase_tree","64_colliders","Debug","MSVC 1951","x86_64","Windows",5,50,278.222,260.050,46.428,258.100,508.800,230032,0.00
+"broadphase_tree","128_colliders","Debug","MSVC 1951","x86_64","Windows",5,50,652.840,618.300,74.581,612.400,924.900,196066,0.00
+"broadphase_tree","256_colliders","Debug","MSVC 1951","x86_64","Windows",5,50,1951.328,1778.300,359.509,1670.600,3233.300,131193,0.00
+"narrowphase_gjk_epa","100_pairs_batch","Debug","MSVC 1951","x86_64","Windows",5,50,2954.900,2875.700,391.892,2561.900,4396.200,33842,0.00
+"impulse_solver","10_body_stack_step","Debug","MSVC 1951","x86_64","Windows",5,50,1580.862,1519.600,264.212,1291.700,2272.000,6326,0.00
+"structural_graph","20_node_load_sweep","Debug","MSVC 1951","x86_64","Windows",5,50,36.814,36.600,1.389,36.400,45.800,543272,0.00
+"integrated_physics","16_block_scene_step","Debug","MSVC 1951","x86_64","Windows",5,50,2354.476,2332.550,888.425,469.900,4071.100,6796,0.00
+"fracture_to_collapse","fracture_shards_and_solve","Debug","MSVC 1951","x86_64","Windows",3,20,5168.935,5213.100,161.072,4847.900,5388.700,193,0.00

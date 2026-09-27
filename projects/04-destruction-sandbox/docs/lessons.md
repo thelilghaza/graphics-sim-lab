@@ -91,11 +91,33 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ---
 
-## 6. Explicit Scope Boundaries & Non-Goals
+---
+
+## 6. Milestone 5 Engineering Lessons & Design Decisions
+
+### 6.1 Strict Physics and Rendering Separation via Immutable State Snapshots
+- **Lesson**: Coupling OpenGL draw calls or scene graph state directly into rigid body structures prevents headless automated testing and makes physics simulation non-deterministic across different rendering platforms. In M5, `destruction::render` consumes the simulation strictly via read-only snapshot queries (`world.get_bodies()`, `world.get_colliders()`, `world.get_manifolds()`, `graph.get_edges()`). The physics engine has zero `#include <GL/...>` or `<GLFW/...>` dependencies, allowing headless regression suites (`val_destruction_headless`) and CPU micro-benchmarks (`bench_destruction`) to run in complete isolation from the graphics driver.
+
+### 6.2 Fixed Timestep Accumulator with Spiral-of-Death Clamping
+- **Lesson**: Stepping physics with variable frame delta time $\Delta t_{\text{render}}$ causes non-deterministic simulation divergence and solver instability when frame rate fluctuates. In M5, `SandboxApp` accumulates real elapsed time and advances physics strictly in discrete $1/60\text{ s}$ ($16.66\text{ ms}$) sub-steps. To prevent the "spiral of death" (where slow physics simulation leads to longer render frames, causing even more physics sub-steps on the subsequent frame), the sub-step loop is hard-capped at a maximum of 4 sub-steps per visual frame.
+
+### 6.3 Swept Projectile Advancement for High-Speed Impact Integrity
+- **Lesson**: High-velocity projectiles moving at $28\text{ m/s}$ traverse $0.467\text{ m}$ per physics step at $\Delta t = 1/60\text{ s}$, which exceeds the half-extent of standard structural blocks ($0.5\text{ m}$), leading to discrete tunneling through targets. In M5, high-speed projectiles calculate an expanded swept AABB encompassing their start and end positions over the frame step. This ensures broadphase detection and narrowphase contact generation reliably register the impact and trigger Voronoi fracture without tunneling.
+
+### 6.4 Clean Fragment Geometry Upload & Normal Reconstruction
+- **Lesson**: Dynamically created Voronoi polyhedral fragments have arbitrary facet vertex counts and irregular face topologies that cannot be rendered with fixed cube vertex layouts. In M5, `GlMesh::from_polyhedron` triangulates polyhedral polygon faces using a triangle fan from the first vertex of each face, computes the outward-facing geometric face normal via cross product $(\mathbf{v}_1 - \mathbf{v}_0) \times (\mathbf{v}_2 - \mathbf{v}_0)$, and packs vertex positions, normals, and material colors into a single contiguous VAO/VBO. Shards upload once upon fracture and reuse their GPU buffers while updating only their model transform matrix per frame.
+
+### 6.5 Multi-Workload Canonical Benchmark Aggregation
+- **Lesson**: Invoking separate CSV export calls on the same file path in sequential benchmark workloads can trigger overwrite collisions or truncated CSV headers. In M5, `bench_destruction` collects all benchmark results across all 7 evaluation phases (fracture scaling, broadphase, narrowphase, solver, structural graph, integrated physics, and fracture-to-collapse) into a consolidated vector, exporting the full canonical report `destruction_release.csv` in a single atomic write operation.
+
+---
+
+## 7. Explicit Scope Boundaries & Non-Goals
 
 To maintain strict architectural focus and engineering quality, the following features are explicitly deferred or placed out of scope for Project 04:
 
-- **Interactive 3D OpenGL Demo Application**: Deferred to **Milestone 5**.
-- **Performance Micro-Benchmark Suite (M5)**: Deferred to **Milestone 5**.
 - **GPGPU Compute Shaders**: Explicitly deferred to **Project 05 — GPU Crater Simulator**.
 - **Entity-Component-System (ECS)**: Explicitly deferred to **Project 06 — Tiny Game Engine**.
+- **WebGPU / Browser Deployment**: Out of scope for this repository.
+- **Soft-Body / FEM Simulation**: Out of scope; Project 04 is an engineering rigid-body destruction sandbox.
+- **Third-Party Physics Engine Dependencies**: Strictly prohibited; all math, integrators, clipping, broadphase, narrowphase, solvers, and graph routines are self-contained.

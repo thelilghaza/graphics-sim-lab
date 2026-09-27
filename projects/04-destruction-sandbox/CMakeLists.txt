@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(destruction-sandbox LANGUAGES CXX)
 
-message(STATUS "Configuring Project 04 — Procedural Destruction Sandbox (Milestone 4 Complete)")
+message(STATUS "Configuring Project 04 — Procedural Destruction Sandbox (Milestone 5 Complete)")
 
 # Header-only include directory configuration
 add_library(destruction_sandbox_headers INTERFACE)
@@ -57,5 +57,48 @@ target_link_libraries(demo_physics PRIVATE destruction_sandbox_headers)
 target_set_lab_warnings(demo_physics)
 add_test(NAME demo_physics COMMAND demo_physics)
 
-# Planned future targets (Milestone 5):
-# Milestone 5: sandbox_demo, bench_destruction_physics
+# Milestone 5 Targets
+if(NOT TARGET glfw)
+  include(FetchContent)
+  FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.4
+    GIT_SHALLOW TRUE
+  )
+  set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(glfw)
+endif()
+
+add_executable(destruction_sandbox
+  src/destruction_sandbox.cpp
+  src/render/gl_loader.cpp
+)
+target_link_libraries(destruction_sandbox PRIVATE
+  destruction_sandbox_headers
+  glfw
+)
+if(WIN32)
+  target_link_libraries(destruction_sandbox PRIVATE opengl32)
+endif()
+target_set_lab_warnings(destruction_sandbox)
+
+add_executable(bench_destruction benchmarks/bench_destruction.cpp)
+target_link_libraries(bench_destruction PRIVATE
+  destruction_sandbox_headers
+  performance_lab
+)
+target_set_lab_warnings(bench_destruction)
+
+add_executable(test_sandbox_integration tests/test_sandbox_integration.cpp)
+target_link_libraries(test_sandbox_integration PRIVATE destruction_sandbox_headers)
+target_set_lab_warnings(test_sandbox_integration)
+add_test(NAME test_sandbox_integration COMMAND test_sandbox_integration)
+
+add_executable(val_destruction_headless tests/val_destruction_headless.cpp)
+target_link_libraries(val_destruction_headless PRIVATE destruction_sandbox_headers)
+target_set_lab_warnings(val_destruction_headless)
+add_test(NAME val_destruction_headless COMMAND val_destruction_headless)

@@ -75,38 +75,43 @@ The architecture is divided into seven decoupled core subsystems:
 - **Support Edge Eligibility**: Constructs support edges from contact manifolds where the contact normal reaction has a positive upward component $-\mathbf{n} \cdot \hat{\mathbf{y}} > 0.3$.
 - **Load Propagation & Failure**: Iterative load propagation sweep distributing gravitational and transmitted loads across active support edges, comparing load against structural edge capacity ($A \cdot \sigma_{\text{tensile}} \cdot k_{\text{mult}}$). Overloaded edges break, and a BFS connectivity sweep recomputes supported/unsupported fragment states from static/ground anchor nodes.
 
-### 2.7 Render Subsystem (`destruction::render`) — Planned M5
-- **Real-Time Visualizer**: OpenGL 3.3 pipeline with dynamic VBO/VAO mesh updating for broken shards.
-- **Debugging Overlays**: Wireframe rendering, contact point vectors, contact normal visualization, and structural graph edge colorings.
-- **Headless Mode**: Off-screen PPM image export and console validation output for automated CI testing without display server dependencies.
+### 2.7 Render Subsystem (`destruction::render`) — Implemented M5
+- **OpenGL 3.3 Core Profile Pipeline**: RAII shader compilation (`Shader`), dynamic vertex/index buffers (`GlMesh`), and free-look camera (`Camera`).
+- **Lit Blinn-Phong & Debug Renderer**: `Renderer` executing decoupled mesh rendering with directional lighting and ambient shading, plus multi-mode debug visualizer overlays (AABBs, contact points, outward contact normals, structural support edges, wireframe colliders, centers of mass).
+- **Interactive Sandbox Application**: `SandboxApp` managing fixed-timestep physics updates ($\Delta t = 1/60\text{ s}$), accumulator loop with spiral-of-death cap (max 4 substeps), projectile launching ($28\text{ m/s}$), Voronoi fracture triggers, cascading structural collapse, in-app telemetry HUD, and deterministic state reset.
+- **Headless Mode**: Headless CLI execution (`--headless`, `--timeout N`) executing full simulation pipelines and exporting deterministic state checksums for automated CI environments.
 
 ---
 
 ## 3. Data Flow Architecture
 
-The frame execution loop follows a strict step order:
+The frame execution loop follows a strict decoupled step order:
 
 ```text
-[Input Impact Event]
-         │
-         ▼
-[Voronoi Fracture Generator] ──► [Mesh Clipping Engine] ──► [Shard Instantiation]
-                                                                  │
-┌─────────────────────────────────────────────────────────────────┘
-│
-▼
+[User / Input Event]
+       │
+       ├─► Space: Launch Projectile (Ray origin/direction, 28 m/s)
+       ├─► F: Trigger Deterministic Voronoi Fracture
+       ├─► P: Pause / Resume Simulation
+       ├─► O: Advance Exactly One Fixed Step (1/60s)
+       └─► R: Deterministic Scene Reset
+       │
+       ▼
 [Physics Simulation Step (Fixed dt = 1/60s)]
   │
-  ├─► 1. Apply Gravity & External Forces
-  ├─► 2. Broadphase AABB Tree Update & Pair Pruning (Implemented M3)
-  ├─► 3. Narrowphase GJK/EPA Contact Manifold Generation (Implemented M3)
-  ├─► 4. Evaluate Structural Connectivity Graph Stress & Break Overloaded Edges (Planned M4)
-  ├─► 5. Sequential Impulse Solver Iterations (Velocity & Friction Impulses) (Planned M4)
-  ├─► 6. Integrate Positions & Orientations (Symplectic Euler) (Implemented M1)
-  └─► 7. Baumgarte Position Correction & Sleep Deactivation (Planned M4)
-         │
-         ▼
-[Render / Visualizer Frame Output]
+  ├─► 1. Apply Gravity & External Projectile Velocities
+  ├─► 2. Broadphase AABB Tree Update & Overlapping Pair Generation
+  ├─► 3. Narrowphase GJK/EPA Contact Manifold Extraction (4-Point Reduced)
+  ├─► 4. Evaluate Structural Connectivity Graph (Load Sweep & Edge Failure)
+  ├─► 5. Sequential Impulse Solver (Warm Starting, Normal Impulses, Friction)
+  ├─► 6. Split Impulse Position Stabilization (Zero Kinetic Energy Drift)
+  └─► 7. Symplectic Euler Integration (Positions & Orientations)
+       │
+       ▼
+[Render Snapshot Generation (Read-Only Simulation State)]
+       │
+       ▼
+[OpenGL 3.3 Draw Calls (Lit Geometry + Selected Debug Overlays)]
 ```
 
 ---
@@ -169,9 +174,17 @@ Verification follows a multi-layer testing protocol across CTest suites:
    - EPA penetration depth and contact normal accuracy for interpenetrating boxes.
    - SAT cross-validation agreement on box-box and box-polyhedron colliders.
    - 4-point reduced manifold area coverage and zero false-negative broadphase pruning.
-4. **Constraint Solver Stability Verification (`test_destruction_solver` - Planned M4)**:
-   - Resting stack test: A 5-box vertical stack must remain stable under gravity for 1,000 steps with total displacement $< 1.0\text{ mm}$.
-   - Static friction test: A block resting on an inclined plane must remain stationary up to the critical slope angle $\theta = \arctan(\mu)$.
+4. **Constraint Solver Stability Verification (`test_solver_graph` - PASSED)**:
+   - Resting stack test: A 5-box vertical stack remains stable under gravity with zero penetration explosion and convergence under 10 iterations.
+   - Friction bounds test: Dynamic block sliding down inclined plane adheres to Coulomb friction limits ($\mu = 0.4$).
+   - Split impulse energy stability: Pseudo-velocity position corrections resolve overlap without inflating physical kinetic energy.
+   - Structural graph capacity failure: Overloaded support edges break under transmitted mass, and BFS connectivity sweep correctly identifies unsupported collapsing fragments.
+5. **Integrated Sandbox & Benchmark Verification (`test_sandbox_integration`, `val_destruction_headless`, `bench_destruction` - PASSED)**:
+   - Scene initialization: Tower structure, ground plane, and projectile colliders register unique IDs and intact graph relationships.
+   - Fracture replacement: Original intact body disabled, Voronoi polyhedral shards inserted into dynamic AABB tree, mass and inertia conserved, unique IDs assigned.
+   - Cascading collapse: Projectile impact fractures tower block, destroys support links, and propagates support failure, causing unsupported fragments to collapse under gravity.
+   - Deterministic reset: Simulation state, body positions, velocities, and graph connectivity restore to identical bitwise initial states.
+   - Headless checksum regression: 120-step deterministic simulation produces finite, zero-NaN output with checksum `0xC8637A22`.
 
 ---
 

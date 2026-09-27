@@ -1,6 +1,6 @@
 # Project 04: Procedural Destruction Sandbox
 
-*Status: Milestone 4 Complete (Sequential Impulse Constraint Solver & Structural Connectivity Graph)*
+*Status: Milestone 5 Complete (Integrated Interactive Destruction Sandbox Demo & Performance Benchmarking)*
 
 ---
 
@@ -122,10 +122,63 @@ projects/04-destruction-sandbox/
 - Implemented structural connectivity graph (`StructuralGraph`) evaluating support edge eligibility, iterative load propagation, edge capacity failure, and structural connectivity sweeps.
 - Verified analytical head-on elastic momentum conservation, off-center torque response, friction sliding bounds, resting stack stability, position split stabilization without kinetic energy bleed, and load capacity failure (`test_solver_graph`, `demo_physics`).
 
-### Milestone 5: Integrated Sandbox Demo & Performance Benchmarking (PLANNED)
-- Combine all subsystems into an interactive 3D destruction application.
-- Add real-time projectile launch, wireframe/solid toggle, fracture site tuning, and camera controls.
-- Export performance micro-benchmarks for fracture and physics frame time evaluation.
+### Milestone 5: Integrated Sandbox Demo & Performance Benchmarking (COMPLETE)
+- Implemented lightweight RAII OpenGL 3.3 Core Profile rendering pipeline (`destruction::render`), free-look camera (`Camera`), shader compilation (`Shader`), dynamic vertex/index buffers (`GlMesh`), and Blinn-Phong renderer (`Renderer`).
+- Implemented real-time interactive destruction sandbox application (`destruction_sandbox`) featuring fixed-timestep physics accumulator ($1/60\text{ s}$), deterministic projectile launcher, Voronoi fracture trigger, cascading structural collapse, real-time diagnostic HUD/telemetry, and clean deterministic reset.
+- Implemented comprehensive debug overlays: world AABBs, contact points, outward contact normals, structural support edges, broken support edges, wireframe colliders, and centers of mass.
+- Implemented formal performance micro-benchmark suite (`bench_destruction`) covering Voronoi fracture scaling, dynamic AABB tree broadphase, narrowphase GJK/EPA, sequential impulse solver, structural graph load sweep, integrated physics step, and full fracture-to-collapse pipeline, exporting canonical CSV report (`destruction_release.csv`).
+- Implemented focused integration tests (`test_sandbox_integration`) and automated 120-step headless simulation validation executable (`val_destruction_headless`) verifying finite state, zero NaNs, and deterministic checksum (`0xC8637A22`).
+
+---
+
+## Interactive Demo Controls
+
+The `destruction_sandbox` application provides an interactive 3D demonstration:
+
+| Key / Input | Action | Description |
+| :--- | :--- | :--- |
+| **W, A, S, D** | Move Camera | Free camera translation forward, left, backward, right |
+| **Q, E** | Elevate Camera | Free camera translation down (Q) and up (E) |
+| **Shift** | Boost Speed | 2.5x camera movement speed multiplier |
+| **Right Mouse (Hold)** | Look Around | Free-look camera yaw and pitch rotation |
+| **Space** | Launch Projectile | Fires high-velocity sphere projectile ($28\text{ m/s}$) along camera forward ray |
+| **F** | Trigger Fracture | Manually fractures the central target tower block into Voronoi shards |
+| **P** | Pause / Resume | Toggles physics simulation pause state |
+| **O** | Single Step | Advances simulation by exactly one fixed physics step ($1/60\text{ s}$) while paused |
+| **R** | Reset Scene | Restores scene, rigid bodies, colliders, and structural graph to initial deterministic state |
+| **C** | Reset Camera | Restores camera position and orientation to default viewing angle |
+| **1** | Toggle Wireframe | Toggles mesh polygon wireframe rendering mode |
+| **2** | Toggle AABBs | Toggles world-space axis-aligned bounding box debug outlines |
+| **3** | Toggle Contacts | Toggles contact points and outward-pointing contact normals |
+| **4** | Toggle Support Graph | Toggles green (active) and red (broken) structural support graph edges |
+| **H** | Toggle Help Overlay | Displays in-app keyboard and mouse navigation controls in console |
+| **Esc** | Exit | Closes application cleanly and releases all OpenGL resources |
+
+CLI options for `destruction_sandbox`:
+- `--headless`: Runs simulation without creating an OpenGL window.
+- `--timeout <steps>`: Automatically exits after simulating the specified number of physics steps.
+
+---
+
+## Benchmark Summary
+
+Canonical Release benchmark results from `projects/04-destruction-sandbox/benchmarks/reports/destruction_release.csv`:
+
+| Benchmark | Workload | Mean ($\mu\text{s}$) | Median ($\mu\text{s}$) | Min ($\mu\text{s}$) | Max ($\mu\text{s}$) | Throughput |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `voronoi_fracture` | 4 sites | 1012.52 | 941.30 | 906.70 | 1371.20 | 3,951 ops/s |
+| `voronoi_fracture` | 8 sites | 4982.43 | 4956.05 | 4637.20 | 5488.50 | 1,606 ops/s |
+| `voronoi_fracture` | 16 sites | 21687.97 | 21734.65 | 21132.30 | 22291.40 | 738 ops/s |
+| `voronoi_fracture` | 32 sites | 109581.19 | 105538.85 | 101047.80 | 133387.10 | 292 ops/s |
+| `broadphase_tree` | 16 colliders | 62.08 | 55.60 | 55.30 | 98.80 | 257,749 ops/s |
+| `broadphase_tree` | 64 colliders | 278.22 | 260.05 | 258.10 | 508.80 | 230,032 ops/s |
+| `broadphase_tree` | 128 colliders | 652.84 | 618.30 | 612.40 | 924.90 | 196,066 ops/s |
+| `broadphase_tree` | 256 colliders | 1951.33 | 1778.30 | 1670.60 | 3233.30 | 131,193 ops/s |
+| `narrowphase_gjk_epa` | 100 pairs | 2954.90 | 2875.70 | 2561.90 | 4396.20 | 33,842 ops/s |
+| `impulse_solver` | 10-body stack | 1580.86 | 1519.60 | 1291.70 | 2272.00 | 6,326 ops/s |
+| `structural_graph` | 20-node sweep | 36.81 | 36.60 | 36.40 | 45.80 | 543,272 ops/s |
+| `integrated_physics` | 16-block step | 2354.48 | 2332.55 | 469.90 | 4071.10 | 6,796 ops/s |
+| `fracture_to_collapse` | Shards & solve | 5168.94 | 5213.10 | 4847.90 | 5388.70 | 193 ops/s |
 
 ---
 
@@ -134,13 +187,13 @@ projects/04-destruction-sandbox/
 - **C++ Standard**: C++20 compliant compiler.
 - **Build System**: CMake 3.20+ and Ninja.
 - **Standard Library**: Standard containers, algorithms, atomic operations, timing routines.
-- **Graphics Pipeline**: OpenGL 3.3 / GLFW / glad (matching Project 02 established conventions) for real-time visualization in Milestone 5, with headless PPM frame export support for automated continuous integration.
+- **Graphics Pipeline**: OpenGL 3.3 Core Profile / GLFW 3.4 / lightweight function loader (`gl_loader`) with zero external engine dependencies. Headless mode supported for automated validation and CI.
 
 ---
 
 ## Verification & Quality Discipline
 
-- **Correctness First**: All algorithms verified with automated CTest suites (`test_dynamics_math`, `val_dynamics_headless`, `test_fracture_geometry`, `demo_fracture`, `test_collision`, `demo_collision`).
-- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). Collision checksum validation (`0xA2F70000`).
-- **Zero Energy Drift**: Physics integration validated against analytical energy and momentum conservation equations.
+- **Correctness First**: All algorithms verified with automated CTest suites: M1 math (`test_dynamics_math`, `val_dynamics_headless`), M2 fracture (`test_fracture_geometry`, `demo_fracture`), M3 collision (`test_collision`, `demo_collision`), M4 solver (`test_solver_graph`, `demo_physics`), and M5 integration (`test_sandbox_integration`, `val_destruction_headless`).
+- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). Collision checksum validation (`0xA2F70000`) and M5 headless simulation checksum validation (`0xC8637A22`).
+- **Zero Energy Drift**: Physics integration validated against analytical energy and momentum conservation equations. Split impulses eliminate position drift without kinetic energy inflation.
 - **No Emojis**: Strict enforcement of clean professional documentation across all source files, headers, CLI logs, and reports.
