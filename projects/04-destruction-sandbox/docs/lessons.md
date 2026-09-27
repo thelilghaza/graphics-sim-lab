@@ -73,12 +73,29 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ---
 
-## 5. Explicit Scope Boundaries & Non-Goals
+## 5. Milestone 4 Engineering Lessons & Design Decisions
+
+### 5.1 Split Impulses vs Direct Baumgarte Velocity Bias
+- **Lesson**: Adding Baumgarte position correction bias $b = \frac{\beta}{\Delta t} \max(0, d - \text{slop})$ directly into the velocity solver equation causes position stabilization impulses to bleed into body linear and angular velocities. This artificially injects physical kinetic energy, making dynamic bodies bounce or jitter upward in resting stacks. In M4, `SequentialImpulseSolver` implements **Split Impulses**: physical velocity iterations solve velocity response and restitution, while position stabilization iterations solve pseudo-velocities ($\mathbf{v}_{ps}, \boldsymbol{\omega}_{ps}$) on a separate accumulator. Pseudo-velocities update body positions directly ($\mathbf{x} \leftarrow \mathbf{x} + \mathbf{v}_{ps} \Delta t$) without modifying physical velocities $\mathbf{v}$ and $\boldsymbol{\omega}$, preserving exact kinetic energy stability.
+
+### 5.2 Deterministic 64-Bit Warm Start Contact Key
+- **Lesson**: Caching accumulated impulses using raw memory pointers breaks determinism across different runs and thread schedules, while using simple body ID pairs causes contact impulse bleeding across multiple contact points on the same body pair. In M4, `WarmStartCache` constructs a deterministic 64-bit key:
+  $$\text{key} = (\min(id_A, id_B) \ll 48) \oplus (\max(id_A, id_B) \ll 32) \oplus \text{feature\_hash}$$
+  where `feature_hash` combines manifold feature IDs or 3D quantized contact point coordinates. Unused cache entries are tracked by age and pruned automatically after 2 steps, preventing unbounded cache growth.
+
+### 5.3 Upward Normal Reaction Threshold for Support Eligibility
+- **Lesson**: Treating every physical collision contact as a vertical support relationship in the structural connectivity graph causes horizontal lateral collisions or wall scrapes to incorrectly count as structural load supports. In M4, `StructuralGraph` evaluates support eligibility using the upward component of the reaction normal: if $-\mathbf{n} \cdot \hat{\mathbf{y}} > 0.3$ (where $\mathbf{n}$ points from A to B), body B provides vertical support to body A.
+
+### 5.4 Iterative Load Propagation & BFS Connectivity Sweeps
+- **Lesson**: Evaluating structural graph stress using simple local adjacency fails to identify unanchored cantilever overhangs or floating structural sections. In M4, `StructuralGraph` uses a two-phase evaluation: (1) an iterative load propagation sweep distributing gravitational weight ($m \cdot g$) and transmitted loads across active support edges, breaking edges whose transmitted load exceeds capacity $A \cdot \sigma_{\text{tensile}} \cdot k_{\text{mult}}$; (2) a BFS graph connectivity sweep starting from anchored ground root nodes along active edges, marking reachable nodes as supported and unreachable nodes as unsupported/dynamic debris.
+
+---
+
+## 6. Explicit Scope Boundaries & Non-Goals
 
 To maintain strict architectural focus and engineering quality, the following features are explicitly deferred or placed out of scope for Project 04:
 
-- **Sequential Impulse Constraint Solver & Friction**: Deferred to **Milestone 4**.
-- **Structural Connectivity Graph Stress Analysis**: Deferred to **Milestone 4**.
 - **Interactive 3D OpenGL Demo Application**: Deferred to **Milestone 5**.
+- **Performance Micro-Benchmark Suite (M5)**: Deferred to **Milestone 5**.
 - **GPGPU Compute Shaders**: Explicitly deferred to **Project 05 — GPU Crater Simulator**.
 - **Entity-Component-System (ECS)**: Explicitly deferred to **Project 06 — Tiny Game Engine**.

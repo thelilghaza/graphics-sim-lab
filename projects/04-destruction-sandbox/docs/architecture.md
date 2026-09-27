@@ -64,15 +64,16 @@ The architecture is divided into seven decoupled core subsystems:
 - **Narrowphase SAT Cross-Validation**: `Sat` evaluating projections across face normals and edge cross-products for independent algorithm cross-checks.
 - **Contact Manifolds**: `ContactManifold` and `Narrowphase` constructing reduced 4-point contact manifolds maximizing contact patch area coverage.
 
-### 2.5 Solver Subsystem (`destruction::solver`) — Planned M4
-- **Sequential Impulse Solver**: Projected Gauss-Seidel (PGS) iterative solver executing velocity impulses to satisfy non-penetration constraints.
-- **Friction Model**: Coulomb friction model calculating tangential friction impulses constrained by the friction coefficient $\mu$.
-- **Baumgarte Stabilization**: Position correction bias eliminating interpenetration slop without adding kinetic energy drift.
+### 2.5 Solver Subsystem (`destruction::solver`) — Implemented M4
+- **Sequential Impulse Solver**: `SequentialImpulseSolver` executing iterative velocity impulses for normal contact resolution, Coulomb friction, and restitution.
+- **Friction Model**: Coulomb friction model calculating tangential friction impulses constrained by the friction coefficient $\mu$ using a stable orthogonal tangent basis $(\mathbf{t}_1, \mathbf{t}_2)$.
+- **Position Stabilization & Split Impulses**: Separate position correction path applying position bias $(\beta / \Delta t) \max(0, d - \text{slop})$ onto pseudo-velocities, eliminating interpenetration without injecting physical kinetic energy into the bodies.
+- **Deterministic Warm Starting**: `WarmStartCache` maintaining cached accumulated normal and tangent impulses across simulation steps using 64-bit deterministic keys and automatic age pruning.
 
-### 2.6 Graph Subsystem (`destruction::graph`) — Planned M4
-- **Structural Connectivity Graph**: Nodes represent rigid body fragments; edges represent structural connections (shared face area, adhesive strength).
-- **Stress Evaluator**: Calculates normal and shear forces transmitted across edges based on external impact forces and gravity loads.
-- **Progressive Unbinding**: Severs edges when transmitted forces exceed stress thresholds, separating connected compound objects into independent rigid bodies.
+### 2.6 Graph Subsystem (`destruction::graph`) — Implemented M4
+- **Structural Connectivity Graph**: `StructuralGraph` tracking structural fragment nodes (`StructuralNode`) and support relationships (`SupportEdge`).
+- **Support Edge Eligibility**: Constructs support edges from contact manifolds where the contact normal reaction has a positive upward component $-\mathbf{n} \cdot \hat{\mathbf{y}} > 0.3$.
+- **Load Propagation & Failure**: Iterative load propagation sweep distributing gravitational and transmitted loads across active support edges, comparing load against structural edge capacity ($A \cdot \sigma_{\text{tensile}} \cdot k_{\text{mult}}$). Overloaded edges break, and a BFS connectivity sweep recomputes supported/unsupported fragment states from static/ground anchor nodes.
 
 ### 2.7 Render Subsystem (`destruction::render`) — Planned M5
 - **Real-Time Visualizer**: OpenGL 3.3 pipeline with dynamic VBO/VAO mesh updating for broken shards.

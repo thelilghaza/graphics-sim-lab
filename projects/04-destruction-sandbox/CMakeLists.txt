@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(destruction-sandbox LANGUAGES CXX)
 
-message(STATUS "Configuring Project 04 — Procedural Destruction Sandbox (Milestone 3 Complete)")
+message(STATUS "Configuring Project 04 — Procedural Destruction Sandbox (Milestone 4 Complete)")
 
 # Header-only include directory configuration
 add_library(destruction_sandbox_headers INTERFACE)
@@ -46,6 +46,16 @@ target_link_libraries(demo_collision PRIVATE destruction_sandbox_headers)
 target_set_lab_warnings(demo_collision)
 add_test(NAME demo_collision COMMAND demo_collision)
 
-# Planned future targets (Milestone 4+):
-# Milestone 4: test_destruction_solver, test_destruction_graph
+# Milestone 4 Targets
+add_executable(test_solver_graph tests/test_solver_graph.cpp)
+target_link_libraries(test_solver_graph PRIVATE destruction_sandbox_headers)
+target_set_lab_warnings(test_solver_graph)
+add_test(NAME test_solver_graph COMMAND test_solver_graph)
+
+add_executable(demo_physics tests/demo_physics.cpp)
+target_link_libraries(demo_physics PRIVATE destruction_sandbox_headers)
+target_set_lab_warnings(demo_physics)
+add_test(NAME demo_physics COMMAND demo_physics)
+
+# Planned future targets (Milestone 5):
 # Milestone 5: sandbox_demo, bench_destruction_physics

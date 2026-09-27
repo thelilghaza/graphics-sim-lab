@@ -1,6 +1,6 @@
 # Project 04: Procedural Destruction Sandbox
 
-*Status: Milestone 3 Complete (Collision Detection & Contact Manifold Generation)*
+*Status: Milestone 4 Complete (Sequential Impulse Constraint Solver & Structural Connectivity Graph)*
 
 ---
 
@@ -8,7 +8,7 @@
 
 **Project 04 — Procedural Destruction Sandbox** is a C++20 physical simulation and geometry engine focused on structural fracture, rigid body dynamics, collision detection manifolds, impulse-based constraint solving, and structural connectivity graph stress evaluation.
 
-Building upon the foundations established in previous projects—ray-geometry math (Project 01), volumetric spatial grids and meshing (Project 02), and hardware-aware cache/SIMD/concurrency performance engineering (Project 03)—Project 04 introduces time-evolving physical dynamics, dynamic Voronoi volume partitioning, dynamic contact manifold generation, and cascading structural collapse.
+Building upon the foundations established in previous projects—ray-geometry math (Project 01), volumetric spatial grids and meshing (Project 02), and hardware-aware cache/SIMD/concurrency performance engineering (Project 03)—Project 04 introduces time-evolving physical dynamics, dynamic Voronoi volume partitioning, dynamic contact manifold generation, sequential impulse constraint solving, and cascading structural collapse.
 
 ---
 
@@ -17,9 +17,8 @@ Building upon the foundations established in previous projects—ray-geometry ma
 1. **Deterministic Math & Kinematics Foundation (Milestone 1)**: Provide robust 2D/3D vectors, 3x3 matrices, quaternions, rigid transforms, diagonal inertia tensors, rigid body state, force/torque accumulators, and Symplectic Euler integration.
 2. **Procedural Geometry Fracturing (Milestone 2)**: Implement 2D/3D Voronoi partitioning and planar cell clipping to procedurally shatter convex polyhedral meshes into realistic fragment shards with exact mass and volume conservation.
 3. **Collision Detection & Contact Manifold Generation (Milestone 3)**: Build a two-stage collision pipeline consisting of broadphase dynamic AABB tree spatial indexing and narrowphase GJK/EPA/SAT contact manifold extraction (contact points, normals, penetration depths).
-4. **Impulse-Based Constraint Solver**: Develop a Sequential Impulse / Projected Gauss-Seidel solver resolving contact response, linear/angular friction, restitution, and Baumgarte position stabilization without energy gain or jitter.
-5. **Structural Connectivity Graph**: Evaluate adhesive bonds and stress propagation across adjacent fragments to trigger progressive structural collapse when critical load thresholds are exceeded.
-6. **Interactive Portfolio Demonstration**: Integrate subsystems into a real-time interactive 3D application demonstrating projectile impact, procedural mesh fracture, structural collapse, and debris stabilization.
+4. **Impulse-Based Constraint Solver & Structural Graph (Milestone 4)**: Develop a Sequential Impulse / Projected Gauss-Seidel solver resolving contact response, Coulomb friction, restitution, and split impulse position stabilization, combined with a structural connectivity graph evaluating inter-fragment support loads and failure disconnections.
+5. **Interactive Portfolio Demonstration (Milestone 5)**: Integrate subsystems into a real-time interactive 3D application demonstrating projectile impact, procedural mesh fracture, structural collapse, and debris stabilization.
 
 ---
 
@@ -49,6 +48,15 @@ Building upon the foundations established in previous projects—ray-geometry ma
   - **Narrowphase EPA**: Expanding Polytope Algorithm determining exact penetration depth $d$ and normal $\mathbf{n}$ (pointing from A to B).
   - **Narrowphase SAT**: Independent Separating Axis Theorem cross-validation path.
   - **Contact Manifolds**: 4-point reduced manifolds maximizing contact polygon area coverage.
+- **Sequential Impulse Solver**:
+  - **Normal Impulses**: Effective normal mass $K_n = m_A^{-1} + m_B^{-1} + \mathbf{n} \cdot ((\mathbf{I}_A^{-1} (\mathbf{r}_A \times \mathbf{n})) \times \mathbf{r}_A + (\mathbf{I}_B^{-1} (\mathbf{r}_B \times \mathbf{n})) \times \mathbf{r}_B)$, clamped to $J_n \ge 0$.
+  - **Friction Impulses**: Coulomb friction clamped to $\|\mathbf{J}_t\| \le \mu J_n$ using stable orthogonal tangent basis $(\mathbf{t}_1, \mathbf{t}_2)$.
+  - **Position Stabilization**: Split impulses solving position bias $(\beta / \Delta t) \max(0, d - \text{slop})$ onto separate pseudo-velocities without inflating physical kinetic energy.
+  - **Warm Starting**: Stable 64-bit contact key caching accumulated normal/tangent impulses across step frames with age pruning.
+- **Structural Connectivity Graph**:
+  - **Support Edges**: Evaluated from contact manifolds where reaction normal has upward component $-\mathbf{n} \cdot \hat{\mathbf{y}} > 0.3$.
+  - **Load Propagation**: Deterministic iterative sweep distributing gravitational and transmitted weights across active edges.
+  - **Structural Failure**: Overloaded edges exceeding capacity ($A \cdot \sigma_{\text{tensile}} \cdot k_{\text{mult}}$) break, and graph connectivity sweep recomputes supported/unsupported fragment sets from anchored roots.
 
 ---
 
@@ -67,8 +75,8 @@ projects/04-destruction-sandbox/
 │       ├── dynamics/           # RigidBody state, InertiaTensor, Integrator, PhysicsWorld
 │       ├── fracture/           # Plane, Polygon2D, Voronoi2D, Polyhedron, Clipper3D, Volume, Sites, Shard, Validator, Voronoi3D, ObjExporter
 │       ├── collision/          # Aabb, Collider, DynamicAabbTree, Support, Gjk, Epa, Sat, ContactManifold, Narrowphase
-│       ├── solver/             # Sequential impulse solver, friction, PGS (Planned M4)
-│       ├── graph/              # Structural connectivity graph, stress (Planned M4)
+│       ├── solver/             # SequentialImpulseSolver, ContactConstraint, WarmStartCache, SolverSettings
+│       ├── graph/              # StructuralGraph, SupportEdge, StructuralNode, MaterialParams
 │       └── render/             # Scene visualizer and interactive camera (Planned M5)
 ├── src/                        # Subsystem implementations
 ├── tests/                      # Automated unit and invariant test suites
@@ -77,7 +85,9 @@ projects/04-destruction-sandbox/
 │   ├── test_fracture_geometry.cpp # Milestone 2 2D/3D Voronoi fracture unit tests
 │   ├── demo_fracture.cpp       # Milestone 2 headless OBJ export demo
 │   ├── test_collision.cpp      # Milestone 3 collision detection unit tests
-│   └── demo_collision.cpp      # Milestone 3 headless collision demo
+│   ├── demo_collision.cpp      # Milestone 3 headless collision demo
+│   ├── test_solver_graph.cpp   # Milestone 4 solver and structural graph unit tests
+│   └── demo_physics.cpp        # Milestone 4 headless physics simulation demo
 ├── benchmarks/                 # Micro-benchmarks for fracture and physics performance
 └── assets/                     # Demo scene configurations and mesh presets
 ```
@@ -106,10 +116,11 @@ projects/04-destruction-sandbox/
 - Implemented 4-point reduced contact manifold generation (`ContactManifold`, `Narrowphase`) and headless collision demo (`demo_collision`).
 - Verified zero false negatives, GJK vs SAT agreement, closed edge-manifold shard collisions, and 60-collider broadphase stress testing (`test_collision`).
 
-### Milestone 4: Sequential Impulse Constraint Solver & Structural Graph (PLANNED)
-- Implement Projected Gauss-Seidel / Sequential Impulse solver for contacts, friction, and Baumgarte position stabilization.
-- Implement structural connectivity graph to track adhesive inter-fragment bonds and evaluate stress propagation.
-- Verify resting stack stability without jitter/energy gain and progressive structural collapse under impact.
+### Milestone 4: Sequential Impulse Constraint Solver & Structural Graph (COMPLETE)
+- Implemented Projected Gauss-Seidel / Sequential Impulse solver (`SequentialImpulseSolver`) resolving normal impulses, Coulomb friction, restitution, and split impulse position stabilization (`ContactConstraint`).
+- Implemented deterministic 64-bit contact key warm starting with age pruning (`WarmStartCache`).
+- Implemented structural connectivity graph (`StructuralGraph`) evaluating support edge eligibility, iterative load propagation, edge capacity failure, and structural connectivity sweeps.
+- Verified analytical head-on elastic momentum conservation, off-center torque response, friction sliding bounds, resting stack stability, position split stabilization without kinetic energy bleed, and load capacity failure (`test_solver_graph`, `demo_physics`).
 
 ### Milestone 5: Integrated Sandbox Demo & Performance Benchmarking (PLANNED)
 - Combine all subsystems into an interactive 3D destruction application.
