@@ -25,6 +25,10 @@ add_executable(bench_simd_vectorization benchmarks/bench_simd_vectorization.cpp)
 target_link_libraries(bench_simd_vectorization PRIVATE performance_lab)
 target_set_lab_warnings(bench_simd_vectorization)
 
+add_executable(bench_lockfree_queues benchmarks/bench_lockfree_queues.cpp)
+target_link_libraries(bench_lockfree_queues PRIVATE performance_lab)
+target_set_lab_warnings(bench_lockfree_queues)
+
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()

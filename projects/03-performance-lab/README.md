@@ -4,9 +4,9 @@ A hardware-aware micro-benchmarking laboratory dedicated to CPU cache locality o
 
 ---
 
-### Current Status: Milestone 3 Complete
+### Current Status: Milestone 4 Complete
 
-Milestone 3 implements the SIMD Vectorization & Intrinsic Acceleration benchmark suite (`bench_simd_vectorization`) and unit test suite (`test_simd`). It empirically compares portable scalar reference, compiler auto-vectorized C++, explicit x86 SSE2/SSE4.2 SIMD, explicit AVX2 SIMD, and portable ARM NEON structures across vector arithmetic, vector transform, and packet geometry workloads.
+Milestone 4 implements the Thread Contention & Lock-Free vs Mutex Synchronization Queue benchmark suite (`bench_lockfree_queues`) and unit test suite (`test_lockfree_queues`). It empirically compares a `std::mutex` + condition variable bounded queue, a single-producer single-consumer (SPSC) lock-free ring buffer, and a bounded multi-producer multi-consumer (MPMC) lock-free queue across varying producer/consumer topologies (1P1C, 2P2C, 4P4C, 8P8C) and queue capacities (64, 1024, 16384).
 
 ---
 
@@ -67,21 +67,51 @@ Milestone 3 implements the SIMD Vectorization & Intrinsic Acceleration benchmark
 
 ---
 
+## Implemented Milestone 4 Behavior
+
+- **Fixed-Size Payload Model (`queue_payload.hpp`)**:
+  - `QueueItem`: exactly 24 bytes (three 64-bit unsigned integers: `sequence`, `payload_a`, `payload_b`).
+  - Trivially copyable and destructible; initialized deterministically from sequence ID with self-verifying payload checksums to detect data tearing or corruption.
+- **Atomic Lock-Free Trait Verification (`atomic_lockfree_traits.hpp`)**:
+  - Queries `is_always_lock_free` and runtime `is_lock_free()` for `size_t`, `uint64_t`, and `uint32_t`.
+  - Confirms lock-free atomic status on x86-64 target while documenting platform portability boundaries.
+- **Queue A: Mutex Bounded Queue (`mutex_bounded_queue.hpp`)**:
+  - Fixed-capacity ring buffer storage synchronized via `std::mutex` and dual condition variables (`cv_not_full_`, `cv_not_empty_`).
+  - Provides non-blocking `try_push`/`try_pop` and blocking `push`/`pop` without dynamic memory allocation.
+- **Queue B: SPSC Lock-Free Ring Buffer (`spsc_queue.hpp`)**:
+  - Single-producer/single-consumer bounded ring buffer with cache-line-isolated control structures (`alignas(kCacheLineSize)`).
+  - Implements shadowed index caching (Kogan-Petrank pattern) to reduce cross-core invalidation traffic.
+  - Deliberate memory ordering: acquire loads and release stores guarantee payload visibility before index advancement.
+- **Queue C: MPMC Bounded Lock-Free Queue (`mpmc_bounded_queue.hpp`)**:
+  - Multi-producer/multi-consumer bounded queue based on Dmitry Vyukov's slot sequence-number ring-buffer algorithm.
+  - Monotonically advancing slot sequence numbers prevent ABA wrap-around anomalies.
+  - Power-of-two capacity with bitwise index masking and cache-line-isolated enqueue/dequeue positions.
+- **Timing & Thread Lifecycle Isolation (`bench_lockfree_queues.cpp`)**:
+  - Worker threads are spawned and pre-synchronized on an `std::latch` barrier before the monotonic clock starts.
+  - Timer stops precisely when the consumer dequeues the final item; thread join and aggregate checksum validation occur strictly outside the timed window.
+- **Topology & Contention Matrix**:
+  - SPSC evaluated at 1P/1C across capacities 64, 1024, 16384.
+  - MPMC and Mutex evaluated across concurrency scaling (1P1C, 2P2C, 4P4C, 8P8C) and capacity variations (64, 1024, 16384).
+- **Automated CTest Suite (`test_lockfree_queues`)**:
+  - 6 unit test cases covering atomic traits, SPSC FIFO/wrap-around/multithreading, Mutex queue concurrency, MPMC concurrency, and a 1,000,000-item multi-threaded stress validation reporting zero missing, duplicate, or corrupted items.
+
+---
+
 ## Planned Milestone Roadmap
 
 - [x] **Phase 0**: Discovery, Technical Roadmap & Architecture Review
 - [x] **Milestone 1**: Micro-Benchmarking Harness & High-Precision Timing Infrastructure
 - [x] **Milestone 2**: Cache Locality & Data Layout Benchmarks (AoS vs SoA vs Stride Access)
 - [x] **Milestone 3**: SIMD Vectorization & Intrinsic Acceleration (AVX2 / SSE4.2 Vector & Geometry Kernels)
-- [ ] **Milestone 4**: Thread Contention & Lock-Free vs Mutex Synchronization Queues
+- [x] **Milestone 4**: Thread Contention & Lock-Free vs Mutex Synchronization Queues
 - [ ] **Milestone 5**: Memory Allocator Churn & Arena / Bump Allocator Benchmarks
 
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
 
-- **No Queue / Allocator Work Yet**: Milestone 3 focuses strictly on SIMD intrinsics and vectorization. Lock-free queues and memory allocators are deferred to Milestones 4 and 5.
-- **No Hardware Counter Claims**: Performance conclusions distinguish empirical timing and throughput metrics from hardware microarchitectural interpretations.
+- **No Allocator Experiments Yet**: Milestone 4 focuses strictly on concurrency and synchronization queues. Custom memory allocators and arenas are deferred to Milestone 5.
+- **No Hardware Counter Claims**: Concurrency metrics report observed throughput (items/sec) and latency without inferring unmeasured hardware cache coherence state transitions.
 - **No Shared Libraries in `libs/`**: All code remains strictly isolated in `projects/03-performance-lab/`.
 
 ---
@@ -101,4 +131,5 @@ ctest --preset default --output-on-failure
 # Execute benchmark executables
 ./build/release/projects/03-performance-lab/bench_cache_locality.exe
 ./build/release/projects/03-performance-lab/bench_simd_vectorization.exe
+./build/release/projects/03-performance-lab/bench_lockfree_queues.exe
 ```

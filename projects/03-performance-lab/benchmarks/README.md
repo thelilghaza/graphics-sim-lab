@@ -47,6 +47,12 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 - **Kernel B (AXPY Vector Transform)**: Evaluates $y[i] = a \cdot x[i] + y[i]$ over 16K, 1M, and 16M float arrays across Scalar Ref, Compiler Opt, Explicit SSE, and Explicit AVX2. Measures memory bandwidth and throughput.
 - **Kernel C (Batch Ray-AABB Geometry)**: Evaluates 4-wide and 8-wide packet Ray-AABB slab intersection testing across 50,000 ray packets (200,000 rays).
 
+### Milestone 4: Thread Contention & Synchronization Queues (`bench_lockfree_queues`)
+- **Suite 1 (SPSC Lock-Free Ring Buffer)**: Evaluates single-producer/single-consumer bounded lock-free ring buffer across capacities 64, 1024, and 16384 items (24-byte payload).
+- **Suite 2 (MPMC Bounded Lock-Free Concurrency Scaling)**: Evaluates Dmitry Vyukov sequence-number ring-buffer algorithm across 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024.
+- **Suite 3 (Mutex Bounded Queue Baseline Scaling)**: Evaluates `std::mutex` + condition variable bounded queue under identical 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024.
+- **Suite 4 (Capacity Scaling under 4P / 4C Contention)**: Directly compares MPMC and Mutex queues across capacities 64 and 16384 under fixed 4P / 4C multi-threaded contention.
+
 ---
 
 ## Benchmark Report Directory Structure
@@ -58,3 +64,4 @@ Generated reports:
 - `harness_validation_release.csv` / `harness_validation_debug.csv`
 - `cache_locality_release.csv` / `cache_locality_debug.csv`
 - `simd_release.csv` / `simd_debug.csv`
+- `queues_release.csv` / `queues_debug.csv`

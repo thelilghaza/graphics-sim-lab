@@ -17,3 +17,9 @@ target_link_libraries(test_simd PRIVATE performance_lab)
 target_set_lab_warnings(test_simd)
 
 add_test(NAME test_simd COMMAND test_simd)
+
+add_executable(test_lockfree_queues test_lockfree_queues.cpp)
+target_link_libraries(test_lockfree_queues PRIVATE performance_lab)
+target_set_lab_warnings(test_lockfree_queues)
+
+add_test(NAME test_lockfree_queues COMMAND test_lockfree_queues)
