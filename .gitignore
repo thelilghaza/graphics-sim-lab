@@ -1,6 +1,7 @@
 # Build directories and generator output
 build/
 build-*/
+build_*/
 out/
 bin/
 lib/
