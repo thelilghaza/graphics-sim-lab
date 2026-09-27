@@ -127,7 +127,9 @@ projects/04-destruction-sandbox/
 - Implemented real-time interactive destruction sandbox application (`destruction_sandbox`) featuring fixed-timestep physics accumulator ($1/60\text{ s}$), deterministic projectile launcher, Voronoi fracture trigger, cascading structural collapse, real-time diagnostic HUD/telemetry, and clean deterministic reset.
 - Implemented comprehensive debug overlays: world AABBs, contact points, outward contact normals, structural support edges, broken support edges, wireframe colliders, and centers of mass.
 - Implemented formal performance micro-benchmark suite (`bench_destruction`) covering Voronoi fracture scaling, dynamic AABB tree broadphase, narrowphase GJK/EPA, sequential impulse solver, structural graph load sweep, integrated physics step, and full fracture-to-collapse pipeline, exporting canonical CSV report (`destruction_release.csv`).
-- Implemented focused integration tests (`test_sandbox_integration`) and automated 120-step headless simulation validation executable (`val_destruction_headless`) verifying finite state, zero NaNs, and deterministic checksum (`0xC8637A22`).
+- Implemented focused integration tests (`test_sandbox_integration`), automated contact stability acceptance tests (`test_contact_stability`), and automated 120-step headless simulation validation executable (`val_destruction_headless`) verifying finite state, zero NaNs, and deterministic checksum (`0x47784F88`).
+- Implemented Post-M5 Physics & Contact Stability Correction (`5a5bb21fd273a231b92b10f09dbc7c98c6f80a0b`): Snapped near-flat box contact normals ($>0.95$), generated 4-corner planar face support points with stable feature IDs ($1, 2, 3, 4$), corrected 2D planar manifold reduction in `reduce_to_max_4()`, scaled split impulse `position_bias` by `1.0 / point_count`, and implemented symmetric alternating Gauss-Seidel constraint sweeps. Restored rigid tower stack contact stability (reducing 3-box stack penetration from `>0.606 m` down to `<0.015 m`).
+
 
 ---
 
@@ -193,7 +195,7 @@ Canonical Release benchmark results from `projects/04-destruction-sandbox/benchm
 
 ## Verification & Quality Discipline
 
-- **Correctness First**: All algorithms verified with automated CTest suites: M1 math (`test_dynamics_math`, `val_dynamics_headless`), M2 fracture (`test_fracture_geometry`, `demo_fracture`), M3 collision (`test_collision`, `demo_collision`), M4 solver (`test_solver_graph`, `demo_physics`), and M5 integration (`test_sandbox_integration`, `val_destruction_headless`).
-- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). Collision checksum validation (`0xA2F70000`) and M5 headless simulation checksum validation (`0xC8637A22`).
+- **Correctness First**: All algorithms verified with automated CTest suites: M1 math (`test_dynamics_math`, `val_dynamics_headless`), M2 fracture (`test_fracture_geometry`, `demo_fracture`), M3 collision (`test_collision`, `demo_collision`), M4 solver (`test_solver_graph`, `demo_physics`), and M5 integration (`test_sandbox_integration`, `test_contact_stability`, `val_destruction_headless`).
+- **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). Collision checksum validation (`0xA2F70000`) and M5 headless simulation checksum validation (`0x47784F88`).
 - **Zero Energy Drift**: Physics integration validated against analytical energy and momentum conservation equations. Split impulses eliminate position drift without kinetic energy inflation.
 - **No Emojis**: Strict enforcement of clean professional documentation across all source files, headers, CLI logs, and reports.

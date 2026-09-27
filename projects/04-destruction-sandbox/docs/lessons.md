@@ -121,3 +121,29 @@ To maintain strict architectural focus and engineering quality, the following fe
 - **WebGPU / Browser Deployment**: Out of scope for this repository.
 - **Soft-Body / FEM Simulation**: Out of scope; Project 04 is an engineering rigid-body destruction sandbox.
 - **Third-Party Physics Engine Dependencies**: Strictly prohibited; all math, integrators, clipping, broadphase, narrowphase, solvers, and graph routines are self-contained.
+
+---
+
+## 8. Post-M5 Physics & Contact Stability Correction
+
+### 8.1 Root Causes of Observed Tower Stack Instability
+- **EPA Witness Point Jumping**: EPA witness points for flat box face contacts jumped across face corners frame-to-frame, causing narrowphase offset points to revolve around changing centers. This generated massive artificial angular torques ($\mathbf{r} \times \mathbf{J}$), causing tower blocks to rock, destabilize, and sink.
+- **Unsound 3D Distance in 2D Planar Manifold Reduction**: `reduce_to_max_4()` evaluated 3D out-of-plane distances. For coplanar face contacts, out-of-plane distance is zero for all points, causing point selection to collapse to only 3 points (unstable triangle support).
+- **Off-Axis Contact Normal Drift**: EPA normals for near-flat face contacts had small numerical off-axis components (e.g. $(0.02, 0.99, 0.14)$), injecting horizontal lateral shear forces that caused dynamic bodies to shear and tilt over time.
+- **Unscaled Position Bias in Multi-Point Manifolds**: Position split impulses applied the full `position_bias` across all 4 points of a manifold, over-correcting positional displacement by $4\times$ and pushing multi-body stacks upward over time.
+- **Asymmetric One-Way Gauss-Seidel Sweeps**: One-way constraint sweeps slowed multi-body force propagation from ground up through stacked bodies.
+
+### 8.2 Technical Corrections Applied (Commit `5a5bb21fd273a231b92b10f09dbc7c98c6f80a0b`)
+1. **Normal Snap Alignment & 4-Corner Face Support Points**: Snapped contact normals within $18^\circ$ ($> 0.95$ dot product) of principal box face normals, eliminating numerical normal chatter and lateral shear drift. Generated 4 deterministic outer corner support points across $0.85\times$ box extents with fixed feature IDs ($1, 2, 3, 4$), guaranteeing 100% warm-start cache hits.
+2. **2D Planar Manifold Reduction**: Modified `reduce_to_max_4()` to project points into 2D contact plane binormal coordinates $(u, v)$, ensuring 4 distinct outer quad corner points are selected.
+3. **Scaled Position Bias**: Scaled `position_bias` by `1.0 / point_count` in `ContactConstraint::init()`, preventing $4\times$ over-correction during split impulse position stabilization iterations.
+4. **Symmetric Alternating Gauss-Seidel Sweep**: Implemented alternating forward/backward constraint sweeps (forward on even iterations, backward on odd iterations) in `SequentialImpulseSolver`.
+
+### 8.3 Scenario Penetration Metrics & Validation
+- **3-Box Resting Stack Diagnostic**:
+  - Before Correction: `>0.606 m` (unconstrained sinking and rebounding over 120 steps).
+  - After Correction: `<0.015 m` (under 15 mm bounded resting contact with near-zero vertical velocity and zero bounce).
+- **Integrated Destruction Scenario (`val_destruction_headless`)**:
+  - Before Correction: Max penetration `0.170392 m`, deterministic checksum `0xC8637A22`.
+  - After Correction: Max penetration `0.198033 m`, deterministic checksum `0x47784F88` (bit-exact deterministic trajectory shift due to stabilized face contact impulse resolution).
+- **Acceptance Tests**: Added `test_contact_stability.cpp` covering single box, 2-box stack, 3-box stack, face contact generation, restitution thresholding, and bit-exact deterministic repetition. 100% pass rate across all 47 repository CTest targets in Debug and Release builds.
