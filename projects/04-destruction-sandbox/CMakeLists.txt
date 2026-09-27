@@ -73,6 +73,8 @@ if(NOT TARGET glfw)
   FetchContent_MakeAvailable(glfw)
 endif()
 
+find_package(OpenGL REQUIRED)
+
 add_executable(destruction_sandbox
   src/destruction_sandbox.cpp
   src/render/gl_loader.cpp
@@ -80,10 +82,8 @@ add_executable(destruction_sandbox
 target_link_libraries(destruction_sandbox PRIVATE
   destruction_sandbox_headers
   glfw
+  OpenGL::GL
 )
-if(WIN32)
-  target_link_libraries(destruction_sandbox PRIVATE opengl32)
-endif()
 target_set_lab_warnings(destruction_sandbox)
 
 add_executable(bench_destruction benchmarks/bench_destruction.cpp)

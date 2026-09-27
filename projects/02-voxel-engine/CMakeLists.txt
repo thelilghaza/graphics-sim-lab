@@ -68,6 +68,8 @@ if(WIN32)
 endif()
 target_set_lab_warnings(bench_lod)
 
+find_package(OpenGL REQUIRED)
+
 add_executable(voxel_viewer
   src/gl_loader.cpp
   src/gl_mesh.cpp
@@ -78,10 +80,8 @@ add_executable(voxel_viewer
 target_link_libraries(voxel_viewer PRIVATE
   voxel_engine
   glfw
+  OpenGL::GL
 )
-if(WIN32)
-  target_link_libraries(voxel_viewer PRIVATE opengl32)
-endif()
 target_set_lab_warnings(voxel_viewer)
 
 if(BUILD_TESTING)
