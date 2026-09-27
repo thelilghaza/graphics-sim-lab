@@ -98,6 +98,11 @@ target_link_libraries(test_sandbox_integration PRIVATE destruction_sandbox_heade
 target_set_lab_warnings(test_sandbox_integration)
 add_test(NAME test_sandbox_integration COMMAND test_sandbox_integration)
 
+add_executable(test_contact_stability tests/test_contact_stability.cpp)
+target_link_libraries(test_contact_stability PRIVATE destruction_sandbox_headers)
+target_set_lab_warnings(test_contact_stability)
+add_test(NAME test_contact_stability COMMAND test_contact_stability)
+
 add_executable(val_destruction_headless tests/val_destruction_headless.cpp)
 target_link_libraries(val_destruction_headless PRIVATE destruction_sandbox_headers)
 target_set_lab_warnings(val_destruction_headless)

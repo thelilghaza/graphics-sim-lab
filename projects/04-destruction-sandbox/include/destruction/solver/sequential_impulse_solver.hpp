@@ -89,7 +89,8 @@ public:
                     settings_.default_friction,
                     settings_.default_restitution,
                     settings_,
-                    dt
+                    dt,
+                    static_cast<int>(manifold.points.size())
                 );
 
                 // Warm start lookup
@@ -105,13 +106,22 @@ public:
             }
         }
 
-        // 3. Iterative Gauss-Seidel Velocity Solver
+        // 3. Iterative Gauss-Seidel Velocity Solver (Symmetric Alternating Order)
         for (int iter = 0; iter < settings_.velocity_iterations; ++iter) {
-            for (auto& constraint : constraints) {
-                constraint.solve_velocity_normal();
-            }
-            for (auto& constraint : constraints) {
-                constraint.solve_velocity_friction();
+            if (iter % 2 == 0) {
+                for (size_t i = 0; i < constraints.size(); ++i) {
+                    constraints[i].solve_velocity_normal();
+                }
+                for (size_t i = 0; i < constraints.size(); ++i) {
+                    constraints[i].solve_velocity_friction();
+                }
+            } else {
+                for (int i = static_cast<int>(constraints.size()) - 1; i >= 0; --i) {
+                    constraints[i].solve_velocity_normal();
+                }
+                for (int i = static_cast<int>(constraints.size()) - 1; i >= 0; --i) {
+                    constraints[i].solve_velocity_friction();
+                }
             }
         }
 

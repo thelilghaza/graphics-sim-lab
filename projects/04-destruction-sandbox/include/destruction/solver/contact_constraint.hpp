@@ -56,7 +56,8 @@ struct ContactConstraint {
         float fric,
         float rest,
         const SolverSettings& settings,
-        float dt
+        float dt,
+        int point_count = 1
     ) {
         body_a = b_a;
         body_b = b_b;
@@ -117,9 +118,10 @@ struct ContactConstraint {
             restitution_bias = 0.0f;
         }
 
-        // Position bias for split impulse position correction
+        // Position bias for split impulse position correction (scaled by point_count)
+        float num_pts = (point_count > 0) ? static_cast<float>(point_count) : 1.0f;
         float depth_excess = std::max(0.0f, penetration_depth - settings.penetration_slop);
-        position_bias = (settings.baumgarte_beta / dt) * std::min(depth_excess, settings.max_position_correction);
+        position_bias = ((settings.baumgarte_beta / dt) * std::min(depth_excess, settings.max_position_correction)) / num_pts;
 
         // Warm-start key construction
         uint32_t min_id = std::min(body_a->id, body_b->id);

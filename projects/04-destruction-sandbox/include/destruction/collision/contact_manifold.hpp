@@ -79,34 +79,43 @@ struct ContactManifold {
         }
         reduced.push_back(points[idx_furthest]);
 
-        // 3. Maximum triangle area with points 1 and 2
-        size_t idx_max_area = 0;
-        float max_area = -1.0f;
-        Vec3 e1 = reduced[1].position_world - reduced[0].position_world;
+        // Tangent & binormal basis on contact plane
+        Vec3 e1 = (reduced[1].position_world - reduced[0].position_world);
+        float len1 = e1.length();
+        if (len1 > 1e-6f) {
+            e1 = e1 * (1.0f / len1);
+        } else {
+            e1 = (std::abs(normal.x) < 0.9f) ? normal.cross(Vec3::unit_x()).normalize() : normal.cross(Vec3::unit_y()).normalize();
+        }
+        Vec3 binorm = normal.cross(e1).normalize();
+
+        // 3. Point furthest in positive binormal direction
+        size_t idx_pos_area = 0;
+        float max_pos_val = -1e9f;
         for (size_t i = 0; i < points.size(); ++i) {
             if (i == idx_deepest || i == idx_furthest) continue;
-            Vec3 e2 = points[i].position_world - reduced[0].position_world;
-            float area = e1.cross(e2).length_sq();
-            if (area > max_area) {
-                max_area = area;
-                idx_max_area = i;
+            Vec3 dir = points[i].position_world - reduced[0].position_world;
+            float proj = dir.dot(binorm);
+            if (proj > max_pos_val) {
+                max_pos_val = proj;
+                idx_pos_area = i;
             }
         }
-        reduced.push_back(points[idx_max_area]);
+        reduced.push_back(points[idx_pos_area]);
 
-        // 4. Maximum distance from triangle (1, 2, 3)
-        size_t idx_fourth = 0;
-        float max_val = -1.0f;
-        Vec3 tri_norm = (reduced[1].position_world - reduced[0].position_world).cross(reduced[2].position_world - reduced[0].position_world);
+        // 4. Point furthest in negative binormal direction
+        size_t idx_neg_area = 0;
+        float max_neg_val = 1e9f;
         for (size_t i = 0; i < points.size(); ++i) {
-            if (i == idx_deepest || i == idx_furthest || i == idx_max_area) continue;
-            float val = std::abs((points[i].position_world - reduced[0].position_world).dot(tri_norm));
-            if (val > max_val) {
-                max_val = val;
-                idx_fourth = i;
+            if (i == idx_deepest || i == idx_furthest || i == idx_pos_area) continue;
+            Vec3 dir = points[i].position_world - reduced[0].position_world;
+            float proj = dir.dot(binorm);
+            if (proj < max_neg_val) {
+                max_neg_val = proj;
+                idx_neg_area = i;
             }
         }
-        reduced.push_back(points[idx_fourth]);
+        reduced.push_back(points[idx_neg_area]);
 
         points = std::move(reduced);
     }
