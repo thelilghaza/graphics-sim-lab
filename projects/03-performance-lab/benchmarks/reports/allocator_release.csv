@@ -1,0 +1,17 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"allocator_churn","malloc_fixed64","Release","MSVC 1951","x86_64","Windows",2,10,14112.4500,14130.2500,397.0932,13518.0000,14742.7000,14171883.69,907.000556
+"allocator_churn","stdalloc_fixed64","Release","MSVC 1951","x86_64","Windows",2,10,15001.1200,14884.5000,492.6789,14375.4000,15842.8000,13332337.85,853.269623
+"allocator_churn","pool_fixed64","Release","MSVC 1951","x86_64","Windows",2,10,372.1300,363.3500,18.9774,360.8000,418.1000,537446591.24,34396.581840
+"allocator_churn","arena_batch_fixed64","Release","MSVC 1951","x86_64","Windows",2,10,292.6300,288.2000,14.4592,282.7000,322.9000,683456925.13,43741.243208
+"allocator_churn","malloc_variable","Release","MSVC 1951","x86_64","Windows",2,10,9889.0500,9761.2500,439.4123,9527.0000,11067.0000,10112194.80,1510.074274
+"allocator_churn","stdalloc_variable","Release","MSVC 1951","x86_64","Windows",2,10,10866.1300,10800.2500,733.1557,10074.3000,12085.6000,9202908.49,1374.288730
+"allocator_churn","arena_variable","Release","MSVC 1951","x86_64","Windows",2,10,261.0600,212.3500,130.4109,209.8000,627.3000,383053704.13,57202.175745
+"allocator_churn","malloc_frames","Release","MSVC 1951","x86_64","Windows",2,10,3546.5200,3545.0500,17.4106,3524.6000,3582.6000,28196654.75,4175.360635
+"allocator_churn","stdalloc_frames","Release","MSVC 1951","x86_64","Windows",2,10,3542.7300,3539.9000,15.4376,3522.4000,3571.6000,28226819.43,4179.827421
+"allocator_churn","arena_frames","Release","MSVC 1951","x86_64","Windows",2,10,176.6000,175.5500,4.5090,172.4000,188.9000,566251415.63,83850.509626
+"allocator_churn","malloc_reuse","Release","MSVC 1951","x86_64","Windows",2,10,6277.0600,6275.1000,30.2628,6234.5000,6332.9000,31862050.07,2039.171204
+"allocator_churn","stdalloc_reuse","Release","MSVC 1951","x86_64","Windows",2,10,6488.6600,6489.7500,29.4245,6434.6000,6540.0000,30823005.06,1972.672324
+"allocator_churn","pool_reuse","Release","MSVC 1951","x86_64","Windows",2,10,339.9000,339.1500,2.6323,337.8000,346.1000,588408355.40,37658.134746
+"allocator_churn","arena_scale_64k","Release","MSVC 1951","x86_64","Windows",2,10,1.4400,1.4000,0.0516,1.4000,1.5000,631944444.44,40444.444444
+"allocator_churn","arena_scale_1m","Release","MSVC 1951","x86_64","Windows",2,10,23.4700,23.0500,1.1786,23.0000,26.8000,620494247.98,39711.631870
+"allocator_churn","arena_scale_16m","Release","MSVC 1951","x86_64","Windows",2,10,376.4100,371.4500,16.1081,368.6000,421.7000,619048378.10,39619.096198

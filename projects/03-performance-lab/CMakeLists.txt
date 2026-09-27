@@ -29,6 +29,10 @@ add_executable(bench_lockfree_queues benchmarks/bench_lockfree_queues.cpp)
 target_link_libraries(bench_lockfree_queues PRIVATE performance_lab)
 target_set_lab_warnings(bench_lockfree_queues)
 
+add_executable(bench_allocator_churn benchmarks/bench_allocator_churn.cpp)
+target_link_libraries(bench_allocator_churn PRIVATE performance_lab)
+target_set_lab_warnings(bench_allocator_churn)
+
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()

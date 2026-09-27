@@ -23,3 +23,9 @@ target_link_libraries(test_lockfree_queues PRIVATE performance_lab)
 target_set_lab_warnings(test_lockfree_queues)
 
 add_test(NAME test_lockfree_queues COMMAND test_lockfree_queues)
+
+add_executable(test_allocator_churn test_allocator_churn.cpp)
+target_link_libraries(test_allocator_churn PRIVATE performance_lab)
+target_set_lab_warnings(test_allocator_churn)
+
+add_test(NAME test_allocator_churn COMMAND test_allocator_churn)

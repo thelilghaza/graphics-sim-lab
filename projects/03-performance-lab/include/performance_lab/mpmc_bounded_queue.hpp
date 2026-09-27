@@ -18,13 +18,17 @@ static constexpr size_t kMpmcCacheLineSize = 64;
 #endif
 
 /**
- * @brief Multi-Producer Multi-Consumer (MPMC) bounded lock-free queue.
+ * @brief Multi-Producer Multi-Consumer (MPMC) bounded non-blocking atomic queue.
  *
- * Implements Dmitry Vyukov's bounded MPMC queue with per-slot sequence numbers:
+ * Implements Dmitry Vyukov's bounded MPMC atomic ring buffer with per-slot sequence numbers:
  * - Fixed capacity (must be power of two).
  * - No dynamic heap allocations during push/pop operations.
  * - Sequence numbers per slot track write/read readiness and prevent ABA wrap-around issues.
  * - Enqueue and dequeue positions reside on isolated cache lines to prevent false sharing.
+ * - Non-blocking atomic synchronization without mutexes. Note that while the underlying
+ *   atomic operations on std::size_t and sequence types are lock-free on x86-64 targets,
+ *   the algorithm's formal multi-threaded progress guarantee is non-blocking with CAS retries
+ *   under contention rather than wait-free or universally obstruction-free.
  * - Memory ordering:
  *     * Slot sequence loads use acquire to synchronize with previous cell writes/reads.
  *     * Slot sequence stores use release to publish data or slot availability.

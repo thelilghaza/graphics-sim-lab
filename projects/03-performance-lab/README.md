@@ -76,16 +76,17 @@ Milestone 4 implements the Thread Contention & Lock-Free vs Mutex Synchronizatio
   - Queries `is_always_lock_free` and runtime `is_lock_free()` for `size_t`, `uint64_t`, and `uint32_t`.
   - Confirms lock-free atomic status on x86-64 target while documenting platform portability boundaries.
 - **Queue A: Mutex Bounded Queue (`mutex_bounded_queue.hpp`)**:
-  - Fixed-capacity ring buffer storage synchronized via `std::mutex` and dual condition variables (`cv_not_full_`, `cv_not_empty_`).
+  - Fixed-capacity ring buffer storage synchronized via `std::mutex` and dual condition variables (`cv_not_full_`, `cv_not_empty_`) using standard OS scheduler blocking synchronization.
   - Provides non-blocking `try_push`/`try_pop` and blocking `push`/`pop` without dynamic memory allocation.
 - **Queue B: SPSC Lock-Free Ring Buffer (`spsc_queue.hpp`)**:
   - Single-producer/single-consumer bounded ring buffer with cache-line-isolated control structures (`alignas(kCacheLineSize)`).
   - Implements shadowed index caching (Kogan-Petrank pattern) to reduce cross-core invalidation traffic.
   - Deliberate memory ordering: acquire loads and release stores guarantee payload visibility before index advancement.
-- **Queue C: MPMC Bounded Lock-Free Queue (`mpmc_bounded_queue.hpp`)**:
-  - Multi-producer/multi-consumer bounded queue based on Dmitry Vyukov's slot sequence-number ring-buffer algorithm.
+- **Queue C: Bounded MPMC Non-Blocking Atomic Queue (`mpmc_bounded_queue.hpp`)**:
+  - Multi-producer/multi-consumer bounded atomic ring buffer based on Dmitry Vyukov's slot sequence-number algorithm.
   - Monotonically advancing slot sequence numbers prevent ABA wrap-around anomalies.
   - Power-of-two capacity with bitwise index masking and cache-line-isolated enqueue/dequeue positions.
+  - Non-blocking atomic synchronization without mutexes. Note that while underlying atomic types are lock-free on x86-64, the queue algorithm's formal progress guarantee is non-blocking with CAS retries under contention rather than wait-free.
 - **Timing & Thread Lifecycle Isolation (`bench_lockfree_queues.cpp`)**:
   - Worker threads are spawned and pre-synchronized on an `std::latch` barrier before the monotonic clock starts.
   - Timer stops precisely when the consumer dequeues the final item; thread join and aggregate checksum validation occur strictly outside the timed window.
@@ -97,6 +98,34 @@ Milestone 4 implements the Thread Contention & Lock-Free vs Mutex Synchronizatio
 
 ---
 
+## Implemented Milestone 5 Behavior
+
+- **Allocation Workload & Payload Model (`allocator_payload.hpp`)**:
+  - Deterministic repeating variable size sequence: `{16, 32, 48, 64, 96, 128, 192, 256, 512}` bytes; fixed-size blocks at 64 and 128 bytes.
+  - `AllocatorPayload`: writes and validates a deterministic 64-bit sequence pattern `(seq << 32) ^ (kMagic ^ size)` preventing compiler dead-code elimination without dominating timing.
+- **Custom Allocator A: Fixed-Block Pool (`fixed_block_pool.hpp`)**:
+  - Preallocated contiguous backing memory with aligned block sizes and intrusive singly linked free-list.
+  - True O(1) allocation and deallocation without heap involvement or kernel transitions during benchmark loops.
+  - Comprehensive accounting: `capacity()`, `available()`, `blocks_in_use()`, `owns(ptr)`, and internal fragmentation waste calculations (`internal_overhead_percent()`).
+- **Custom Allocator B: Linear Arena / Bump Allocator (`linear_arena.hpp`)**:
+  - Monotonically advancing bump allocator with explicit forward alignment padding (supporting 8, 16, 32, 64-byte alignment boundaries).
+  - Explicit zero-byte request policy: returns `nullptr` without advancing the bump pointer or altering statistics.
+  - Instantaneous O(1) bulk reclamation via `reset()` without freeing the preallocated backing buffer.
+  - Detailed diagnostic metrics: `capacity()`, `bytes_used()`, `peak_bytes_used()`, `payload_bytes_requested()`, `alignment_padding_bytes()`, and utilization percentage.
+- **Lifetime Economics & Benchmark Fairness**:
+  - Empirically contrasts general-purpose per-allocation lifetime management (`malloc`/`free`, `std::allocator`) with bulk-lifetime allocation (`LinearArena`) and fixed-block reuse (`FixedBlockPool`).
+  - Recognizes that linear arenas trade arbitrary individual deallocation for bulk reset speed and are not a universal drop-in replacement for general heap allocators.
+- **Benchmark Suites (`bench_allocator_churn.cpp`)**:
+  - Suite 1: Fixed-Size Allocation Churn (64 bytes, 200,000 allocations) across malloc, std::allocator, pool, and arena batch reset.
+  - Suite 2: Variable-Size Allocation Churn (16-512 bytes, 100,000 allocations) across general-purpose allocators and linear arena.
+  - Suite 3: Frame / Batch Temporary Allocation (500 frames x 200 allocations = 100,000 total) demonstrating per-frame arena resets vs individual deallocations.
+  - Suite 4: Pool Reuse Cycles (1,000 blocks x 200 cycles = 200,000 total) demonstrating hot free-list reuse.
+  - Suite 5: Linear Arena Capacity Scaling (64 KiB, 1 MiB, 16 MiB) evaluating throughput stability across memory scales.
+- **Automated CTest Suite (`test_allocator_churn`)**:
+  - 6 unit test cases covering pool allocation/exhaustion/reuse/bounds, arena alignment/boundary/zero-byte/reset, payload verification, duplicate address detection, common workload reproducibility, and a 100,000-op stress validation.
+
+---
+
 ## Planned Milestone Roadmap
 
 - [x] **Phase 0**: Discovery, Technical Roadmap & Architecture Review
@@ -104,15 +133,18 @@ Milestone 4 implements the Thread Contention & Lock-Free vs Mutex Synchronizatio
 - [x] **Milestone 2**: Cache Locality & Data Layout Benchmarks (AoS vs SoA vs Stride Access)
 - [x] **Milestone 3**: SIMD Vectorization & Intrinsic Acceleration (AVX2 / SSE4.2 Vector & Geometry Kernels)
 - [x] **Milestone 4**: Thread Contention & Lock-Free vs Mutex Synchronization Queues
-- [ ] **Milestone 5**: Memory Allocator Churn & Arena / Bump Allocator Benchmarks
+- [x] **Milestone 5**: Memory Allocator Churn & Arena / Bump Allocator Benchmarks
+
+**Project 03 Status**: All 5 planned milestones are fully implemented, verified, and benchmarked.
 
 ---
 
 ## Scope Boundaries & Explicit Non-Goals
 
-- **No Allocator Experiments Yet**: Milestone 4 focuses strictly on concurrency and synchronization queues. Custom memory allocators and arenas are deferred to Milestone 5.
-- **No Hardware Counter Claims**: Concurrency metrics report observed throughput (items/sec) and latency without inferring unmeasured hardware cache coherence state transitions.
+- **No Universal Allocator Superiority Claims**: All benchmark results distinguish the operational lifetime models (per-allocation vs bulk frame reclamation).
+- **No Unmeasured Heap Fragmentation Claims**: Internal fragmentation is computed strictly from custom allocator geometries; system runtime heap fragmentation is not asserted without direct runtime instrumentation.
 - **No Shared Libraries in `libs/`**: All code remains strictly isolated in `projects/03-performance-lab/`.
+- **Project 02 Untouched**: Project 02 remains completely frozen.
 
 ---
 
@@ -132,4 +164,5 @@ ctest --preset default --output-on-failure
 ./build/release/projects/03-performance-lab/bench_cache_locality.exe
 ./build/release/projects/03-performance-lab/bench_simd_vectorization.exe
 ./build/release/projects/03-performance-lab/bench_lockfree_queues.exe
+./build/release/projects/03-performance-lab/bench_allocator_churn.exe
 ```

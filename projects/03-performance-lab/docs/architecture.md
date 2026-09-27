@@ -94,9 +94,9 @@ Modern CPUs execute SIMD instructions processing multiple 32-bit floating-point 
 Work dispatching across CPU worker threads requires thread-safe queues.
 
 ### Evaluated Queue Implementations
-1. **`MutexQueue<T>`**: Standard `std::queue<T>` protected by `std::mutex` and `std::condition_variable`.
-2. **`SPSCQueue<T>` (Single-Producer Single-Consumer)**: Lock-free atomic ring buffer using acquire-release memory ordering (`std::atomic<size_t>` head/tail pointers).
-3. **`MPMCQueue<T>` (Multi-Producer Multi-Consumer)**: Lock-free atomic ring buffer utilizing atomic fetch-add or compare-and-swap (CAS) loops.
+1. **`MutexBoundedQueue<T>`**: Contiguous bounded ring buffer protected by `std::mutex` and dual condition variables (`cv_not_full_`, `cv_not_empty_`) using OS scheduler blocking synchronization.
+2. **`SpscQueue<T>` (Single-Producer Single-Consumer)**: Lock-free atomic ring buffer using acquire-release memory ordering, cache-line-isolated heads/tails, and shadow cached indices.
+3. **`MpmcBoundedQueue<T>` (Multi-Producer Multi-Consumer)**: Bounded non-blocking atomic ring buffer utilizing Dmitry Vyukov's per-slot sequence numbers, power-of-two bitmask indexing, and acquire-release memory orderings without mutexes.
 
 ### Contention Testing Matrix
 - 1 Producer / 1 Consumer (SPSC baseline)
@@ -108,12 +108,12 @@ Work dispatching across CPU worker threads requires thread-safe queues.
 
 ## 7. Memory Allocator & Cache Churn Analysis
 
-Dynamic heap allocation (`malloc` / `new`) incurs metadata management overhead and mutex synchronization inside OS heap allocators.
+Dynamic heap allocation (`malloc` / `new`) incurs metadata management overhead and synchronization inside OS runtime heap allocators.
 
 ### Evaluated Allocator Strategies
-1. **System Heap (`std::allocator`)**: Standard dynamic allocation per object/batch.
-2. **Pre-Allocated Capacity Reuse**: Reserving vector capacity (`vector::reserve()` / `vector::clear()`).
-3. **Linear Arena / Bump Allocator (`ArenaAllocator`)**: Pre-allocates a contiguous memory block (e.g. 1 MB). Allocations advance a single offset pointer (`bump_ptr += size`). Resetting the entire arena takes $O(1)$ time (`bump_ptr = 0`).
+1. **System Heap (`malloc` / `free`, `std::allocator`)**: Standard general-purpose dynamic allocation per object/batch with arbitrary individual deallocation.
+2. **Fixed-Size Block Pool (`FixedBlockPool`)**: Preallocated contiguous buffer managing fixed-size blocks via an intrusive singly linked free-list with O(1) allocation/deallocation without OS transitions.
+3. **Linear Arena / Bump Allocator (`LinearArena`)**: Preallocates contiguous memory; allocations monotonically advance a bump pointer with explicit forward alignment padding. Bulk reclamation of all allocations takes $O(1)$ time via `reset()`. Arbitrary individual deallocation is intentionally unsupported.
 
 ---
 

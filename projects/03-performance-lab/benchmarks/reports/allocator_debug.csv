@@ -1,0 +1,17 @@
+benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
+"allocator_churn","malloc_fixed64","Debug","MSVC 1951","x86_64","Windows",2,10,42677.8500,42580.9000,450.1456,42228.1000,43741.5000,4686271.68,299.921388
+"allocator_churn","stdalloc_fixed64","Debug","MSVC 1951","x86_64","Windows",2,10,47008.5600,47027.3000,570.9544,46067.9000,48040.7000,4254544.28,272.290834
+"allocator_churn","pool_fixed64","Debug","MSVC 1951","x86_64","Windows",2,10,5926.1600,5922.1500,25.0537,5895.9000,5960.1000,33748666.93,2159.914683
+"allocator_churn","arena_batch_fixed64","Debug","MSVC 1951","x86_64","Windows",2,10,5454.3200,5453.8000,11.3940,5434.1000,5472.9000,36668182.28,2346.763666
+"allocator_churn","malloc_variable","Debug","MSVC 1951","x86_64","Windows",2,10,26767.3700,26490.8000,554.1991,26280.6000,27929.9000,3735891.87,557.888205
+"allocator_churn","stdalloc_variable","Debug","MSVC 1951","x86_64","Windows",2,10,30349.9700,30544.6500,766.8972,28848.8000,31300.4000,3294896.17,492.033435
+"allocator_churn","arena_variable","Debug","MSVC 1951","x86_64","Windows",2,10,3542.2100,3451.3500,241.4967,3343.5000,4086.5000,28230963.16,4215.786190
+"allocator_churn","malloc_frames","Debug","MSVC 1951","x86_64","Windows",2,10,17563.3900,17572.1000,86.2115,17443.7000,17680.4000,5693661.65,843.117416
+"allocator_churn","stdalloc_frames","Debug","MSVC 1951","x86_64","Windows",2,10,19586.8100,19541.4000,195.5325,19385.1000,19957.0000,5105476.59,756.018974
+"allocator_churn","arena_frames","Debug","MSVC 1951","x86_64","Windows",2,10,3281.1400,3271.3000,42.7338,3241.4000,3367.6000,30477212.19,4513.065581
+"allocator_churn","malloc_reuse","Debug","MSVC 1951","x86_64","Windows",2,10,31234.7300,31299.2500,692.7570,30401.3000,32825.0000,6403128.82,409.800245
+"allocator_churn","stdalloc_reuse","Debug","MSVC 1951","x86_64","Windows",2,10,37227.7300,35907.6500,3231.1749,35105.7000,43402.4000,5372339.38,343.829720
+"allocator_churn","pool_reuse","Debug","MSVC 1951","x86_64","Windows",2,10,6515.7800,6150.3000,689.5043,5967.1000,7945.3000,30694713.45,1964.461661
+"allocator_churn","arena_scale_64k","Debug","MSVC 1951","x86_64","Windows",2,10,25.0900,25.1000,0.0738,25.0000,25.2000,36269430.05,2321.243523
+"allocator_churn","arena_scale_1m","Debug","MSVC 1951","x86_64","Windows",2,10,408.8800,404.0500,15.9047,401.0000,453.1000,35616806.89,2279.475641
+"allocator_churn","arena_scale_16m","Debug","MSVC 1951","x86_64","Windows",2,10,6774.9900,6649.4000,437.7812,6567.0000,8013.1000,34393556.30,2201.187603

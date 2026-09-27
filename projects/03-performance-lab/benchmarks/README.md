@@ -49,9 +49,16 @@ All micro-benchmarks in Project 03 execute under strict, scientific timing condi
 
 ### Milestone 4: Thread Contention & Synchronization Queues (`bench_lockfree_queues`)
 - **Suite 1 (SPSC Lock-Free Ring Buffer)**: Evaluates single-producer/single-consumer bounded lock-free ring buffer across capacities 64, 1024, and 16384 items (24-byte payload).
-- **Suite 2 (MPMC Bounded Lock-Free Concurrency Scaling)**: Evaluates Dmitry Vyukov sequence-number ring-buffer algorithm across 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024.
-- **Suite 3 (Mutex Bounded Queue Baseline Scaling)**: Evaluates `std::mutex` + condition variable bounded queue under identical 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024.
-- **Suite 4 (Capacity Scaling under 4P / 4C Contention)**: Directly compares MPMC and Mutex queues across capacities 64 and 16384 under fixed 4P / 4C multi-threaded contention.
+- **Suite 2 (MPMC Bounded Atomic Queue Concurrency Scaling)**: Evaluates Dmitry Vyukov sequence-number ring-buffer algorithm (bounded MPMC non-blocking atomic queue) across 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024.
+- **Suite 3 (Mutex Bounded Queue Baseline Scaling)**: Evaluates `std::mutex` + condition variable bounded queue under identical 1P1C, 2P2C, 4P4C, and 8P8C topologies at capacity 1024 with OS scheduler blocking synchronization.
+- **Suite 4 (Capacity Scaling under 4P / 4C Contention)**: Directly compares MPMC non-blocking atomic queue and Mutex bounded queue across capacities 64 and 16384 under fixed 4P / 4C multi-threaded contention.
+
+### Milestone 5: Memory Allocator Churn & Arena / Bump Benchmarks (`bench_allocator_churn`)
+- **Suite 1 (Fixed-Size Allocation Churn, 64 Bytes)**: Compares malloc/free, `std::allocator`, preallocated `FixedBlockPool`, and `LinearArena` bulk batch reset over 200,000 allocations.
+- **Suite 2 (Variable-Size Allocation Churn, 16-512 Bytes)**: Compares malloc/free, `std::allocator`, and `LinearArena` over a deterministic repeating size pattern (100,000 allocations).
+- **Suite 3 (Frame / Batch Temporary Allocation)**: Evaluates frame-lifetime memory patterns (500 frames x 200 temporary allocations = 100,000 total) comparing individual per-frame deallocations against O(1) bulk arena reset.
+- **Suite 4 (Pool Reuse Cycles)**: Evaluates a 1,000-block working set across 200 repeated allocation/deallocation cycles (200,000 total ops), measuring hot free-list reuse against runtime heap allocators.
+- **Suite 5 (Linear Arena Capacity Scaling)**: Evaluates monotonic bump allocation throughput across 64 KiB, 1 MiB, and 16 MiB preallocated arena buffers.
 
 ---
 
@@ -65,3 +72,4 @@ Generated reports:
 - `cache_locality_release.csv` / `cache_locality_debug.csv`
 - `simd_release.csv` / `simd_debug.csv`
 - `queues_release.csv` / `queues_debug.csv`
+- `allocator_release.csv` / `allocator_debug.csv`
