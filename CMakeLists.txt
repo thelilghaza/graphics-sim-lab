@@ -36,6 +36,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/projects/03-performance-lab/CMakeLists.tx
   add_subdirectory(projects/03-performance-lab)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/projects/04-destruction-sandbox/CMakeLists.txt")
+  add_subdirectory(projects/04-destruction-sandbox)
+endif()
+
 # Print foundation status summary
 message(STATUS "--------------------------------------------------------")
 message(STATUS "Graphics & Simulation Lab Foundation Configured")
