@@ -256,8 +256,19 @@ int main() {
     report << "   PROJECT 02 — MILESTONE 10 BENCHMARK REPORT: LEVEL OF DETAIL & LARGE-WORLD SCALE EXPERIMENTS\n";
     report << "=====================================================================================================\n\n";
 
+    std::string compiler_info;
+#if defined(_MSC_VER)
+    compiler_info = "MSVC " + std::to_string(_MSC_VER) + " (x64 Release build)";
+#elif defined(__clang__)
+    compiler_info = "Clang " + std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__) + " (Release build)";
+#elif defined(__GNUC__)
+    compiler_info = "GCC " + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + " (Release build)";
+#else
+    compiler_info = "Unknown Compiler (Release build)";
+#endif
+
     report << "CONFIGURATION:\n";
-    report << "  Compiler: MSVC 19.51 (x64 Release build)\n";
+    report << "  Compiler: " << compiler_info << "\n";
     report << "  Timing Source: std::chrono::high_resolution_clock\n";
     report << "  Worker Count: 4 threads\n";
     report << "  LOD Scheme: LOD 0 (1x1x1), LOD 1 (2x2x2 step), LOD 2 (4x4x4 step)\n\n";

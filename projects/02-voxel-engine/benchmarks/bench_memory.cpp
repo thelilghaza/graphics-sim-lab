@@ -349,11 +349,26 @@ int main() {
     report << " PROJECT 02 — VOXEL ENGINE: MILESTONE 9 MEMORY FOOTPRINT & BUFFER REUSE BENCHMARK REPORT\n";
     report << "========================================================================================================================\n\n";
 
+    std::string compiler_info;
+#if defined(_MSC_VER)
+    compiler_info = "MSVC " + std::to_string(_MSC_VER);
+#elif defined(__clang__)
+    compiler_info = "Clang " + std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__) + "." + std::to_string(__clang_patchlevel__);
+#elif defined(__GNUC__)
+    compiler_info = "GCC " + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
+#else
+    compiler_info = "Unknown Compiler";
+#endif
+
     report << "Environment & Configuration:\n";
     report << "  Build Configuration: Release (/O2, NDEBUG)\n";
-    report << "  Compiler:            MSVC " << _MSC_VER << "\n";
+    report << "  Compiler:            " << compiler_info << "\n";
     report << "  Timing Source:       std::chrono::high_resolution_clock\n";
+#if defined(_WIN32)
     report << "  Memory Measurement:  GetProcessMemoryInfo (WorkingSetSize / PrivateUsage)\n\n";
+#else
+    report << "  Memory Measurement:  Process Memory Measurement (Platform Standard)\n\n";
+#endif
 
     report << "Structural Sizes (Exact Compiler sizeof):\n";
     report << "  sizeof(Voxel):                       " << sizeof(Voxel) << " bytes\n";
