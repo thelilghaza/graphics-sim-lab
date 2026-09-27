@@ -4,6 +4,7 @@
 #include "destruction/math/vec2.hpp"
 #include "destruction/fracture/polygon2d.hpp"
 #include "destruction/math/math_utils.hpp"
+#include <cstdint>
 #include <vector>
 #include <cmath>
 
