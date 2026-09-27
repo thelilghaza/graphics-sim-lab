@@ -108,7 +108,7 @@ Work dispatching across CPU worker threads requires thread-safe queues.
 
 ## 7. Memory Allocator & Cache Churn Analysis
 
-Dynamic heap allocation (`malloc` / `new`) incurs metadata management overhead and synchronization inside OS runtime heap allocators.
+General-purpose heap allocation (`malloc` / `free`, `new` / `delete`) incurs per-allocation execution overhead compared to bulk preallocation and bulk reset reclamation.
 
 ### Evaluated Allocator Strategies
 1. **System Heap (`malloc` / `free`, `std::allocator`)**: Standard general-purpose dynamic allocation per object/batch with arbitrary individual deallocation.

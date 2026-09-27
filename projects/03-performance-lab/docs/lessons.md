@@ -21,7 +21,7 @@ Observations, architecture trade-offs, performance analysis methodology, and des
    - Using explicit cache-line padding (`alignas(64)`) between atomic head and tail pointers is a mandatory design rule for high-performance concurrent queues.
 
 5. **Allocator Lifetime Economics & Bulk Reclamation**:
-   - Linear arena allocators trade arbitrary individual deallocation for O(1) bulk reset speed. In workloads where object lifetimes are bounded by a frame or batch phase, arenas eliminate allocator metadata traversal, synchronization, and individual free overhead.
+   - Linear arena allocators trade arbitrary individual deallocation for O(1) bulk reset speed. In workloads where object lifetimes are bounded by a frame or batch phase, arenas avoid individual general-purpose allocation/deallocation operations and reclaim the entire batch with a single reset.
    - Fixed-block pools trade request-size flexibility for fast O(1) reuse of preallocated blocks without returning memory to the system runtime heap.
    - Allocator benchmarking must strictly distinguish per-allocation lifetime management from bulk-lifetime allocation rather than asserting universal superiority for any single strategy.
 
