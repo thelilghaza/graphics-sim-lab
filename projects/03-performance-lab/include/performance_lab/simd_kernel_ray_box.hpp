@@ -39,14 +39,15 @@ struct RayPacket8 {
 /**
  * @brief Reference Scalar Implementation (Auto-Vectorization Explicitly Disabled).
  */
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("no-tree-vectorize")))
+#endif
 inline uint32_t kernel_ray_box_4_scalar_reference(const RayPacket4& rays, const AABB3D& box) {
     uint32_t hit_mask = 0;
 #if defined(_MSC_VER)
     #pragma loop(no_vector)
 #elif defined(__clang__)
     #pragma clang loop vectorize(disable)
-#elif defined(__GNUC__)
-    #pragma GCC optimize("no-tree-vectorize")
 #endif
     for (int k = 0; k < 4; ++k) {
         float t1_x = (box.min_x - rays.orig_x[k]) * rays.inv_dir_x[k];
@@ -158,6 +159,9 @@ inline uint32_t kernel_ray_box_4_sse(const RayPacket4& rays, const AABB3D& box) 
 /**
  * @brief Explicit AVX2 Implementation (8-Wide SIMD Ray-AABB Intersection).
  */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(PERFORMANCE_LAB_ARCH_X86)
+__attribute__((target("avx2,fma")))
+#endif
 inline uint32_t kernel_ray_box_8_avx2(const RayPacket8& rays, const AABB3D& box) {
 #if defined(PERFORMANCE_LAB_HAS_AVX2_INTRINSICS)
     if (!SimdCapabilities::has_avx2()) {

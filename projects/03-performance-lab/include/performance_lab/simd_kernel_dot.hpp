@@ -16,14 +16,15 @@ namespace performance_lab {
 /**
  * @brief Reference Scalar Implementation (Auto-Vectorization Explicitly Disabled).
  */
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("no-tree-vectorize")))
+#endif
 inline float kernel_dot_scalar_reference(const float* a, const float* b, const float* c, size_t n) {
     float sum = 0.0f;
 #if defined(_MSC_VER)
     #pragma loop(no_vector)
 #elif defined(__clang__)
     #pragma clang loop vectorize(disable)
-#elif defined(__GNUC__)
-    #pragma GCC optimize("no-tree-vectorize")
 #endif
     for (size_t i = 0; i < n; ++i) {
         sum += a[i] * b[i] + c[i];
@@ -77,6 +78,9 @@ inline float kernel_dot_sse(const float* a, const float* b, const float* c, size
 /**
  * @brief Explicit AVX2 Implementation (8 Floats per Step using FMA).
  */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(PERFORMANCE_LAB_ARCH_X86)
+__attribute__((target("avx2,fma")))
+#endif
 inline float kernel_dot_avx2(const float* a, const float* b, const float* c, size_t n) {
     float sum = 0.0f;
 #if defined(PERFORMANCE_LAB_HAS_AVX2_INTRINSICS)

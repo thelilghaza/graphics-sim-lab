@@ -15,13 +15,14 @@ namespace performance_lab {
 /**
  * @brief Reference Scalar Implementation (Auto-Vectorization Explicitly Disabled).
  */
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("no-tree-vectorize")))
+#endif
 inline void kernel_axpy_scalar_reference(float alpha, const float* x, float* y, size_t n) {
 #if defined(_MSC_VER)
     #pragma loop(no_vector)
 #elif defined(__clang__)
     #pragma clang loop vectorize(disable)
-#elif defined(__GNUC__)
-    #pragma GCC optimize("no-tree-vectorize")
 #endif
     for (size_t i = 0; i < n; ++i) {
         y[i] = alpha * x[i] + y[i];
@@ -64,6 +65,9 @@ inline void kernel_axpy_sse(float alpha, const float* x, float* y, size_t n) {
 /**
  * @brief Explicit AVX2 Implementation (8 Floats per Step using FMA).
  */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(PERFORMANCE_LAB_ARCH_X86)
+__attribute__((target("avx2,fma")))
+#endif
 inline void kernel_axpy_avx2(float alpha, const float* x, float* y, size_t n) {
 #if defined(PERFORMANCE_LAB_HAS_AVX2_INTRINSICS)
     if (!SimdCapabilities::has_avx2()) {
