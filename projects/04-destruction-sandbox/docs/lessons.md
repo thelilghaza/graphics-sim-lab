@@ -8,7 +8,7 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ### 1.1 Lessons from Project 01 (CPU Ray Tracer)
 - **Spatial Pruning Efficiency**: Project 01 demonstrated that spatial hierarchy bounds (BVH) are essential for performance. Project 04 applies this principle by utilizing a Dynamic AABB Tree for broadphase collision detection, preventing $O(N^2)$ narrowphase pair evaluations.
-- **Analytical Math Verification**: First-principles analytical verification of ray-geometry intersections proved vital in Project 01. In Project 04, rigid body dynamics and GJK/EPA collision manifolds are similarly verified against closed-form analytical equations before performance optimization.
+- **Analytical Math Verification**: First-principles analytical verification of ray-geometry intersections proved vital in Project 01. In Project 04 Milestone 1, rigid body dynamics and vector/matrix/quaternion math were similarly verified against closed-form analytical equations before physics solver design.
 
 ### 1.2 Lessons from Project 02 (Voxel Engine)
 - **Decoupled Asynchronous Workflows**: Project 02 used asynchronous worker thread queues for terrain chunk meshing with neighborhood snapshot isolation. Project 04 adopts the same pattern: dynamic Voronoi mesh fracturing tasks are offloaded to background worker threads without blocking the main physics simulation step.
@@ -20,19 +20,24 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ---
 
-## 2. Key Phase 0 Design Decisions & Trade-Offs
+## 2. Milestone 1 Engineering Lessons & Design Decisions
 
-### 2.1 Voronoi Mesh Clipping vs. CSG Boolean Operations
-- **Decision**: Use 3D planar bisector clipping (half-space clipping) rather than general Constructive Solid Geometry (CSG) mesh boolean operations.
-- **Rationale**: General CSG operations are computationally expensive, numerically sensitive, and prone to topological errors on complex meshes. Planar bisector clipping on convex polyhedra is deterministic, robust, highly parallelizable, and generates clean watertight convex shard meshes.
+### 2.1 Symplectic Euler vs Explicit Euler Integration
+- **Lesson**: Standard Explicit Euler updates position using current velocity $\mathbf{x}(t+\Delta t) = \mathbf{x}(t) + \mathbf{v}(t) \Delta t$, which gains artificial kinetic energy over time in harmonic/gravitational systems. Symplectic Euler (Semi-Implicit Euler) updates velocity first and then uses the *new* velocity $\mathbf{v}(t+\Delta t)$ to update position:
+  $$\mathbf{v}(t+\Delta t) = \mathbf{v}(t) + \mathbf{a}(t) \Delta t$$
+  $$\mathbf{x}(t+\Delta t) = \mathbf{x}(t) + \mathbf{v}(t+\Delta t) \Delta t$$
+  This conserves phase-space area and guarantees energy stability in discrete physics integration.
 
-### 2.2 Sequential Impulses (PGS) vs. Penalty-Based Collision Methods
-- **Decision**: Implement a Projected Gauss-Seidel (PGS) Sequential Impulse solver rather than penalty spring-damper collision methods.
-- **Rationale**: Penalty-based collision methods require extremely small timesteps to avoid stiffness explosion and visual jitter. Sequential impulse solvers operate stably on fixed timesteps ($\Delta t = 1/60\text{ s}$), enforcing hard velocity/position constraints while handling static and dynamic friction accurately.
+### 2.2 Discrete Recurrence vs Continuous Integral Validation
+- **Lesson**: When verifying discrete physics integrators in unit tests, analytical continuous equations $y(t) = y_0 - \frac{1}{2} g t^2$ contain discretization error relative to discrete timestep updates. For discrete Symplectic Euler with fixed $\Delta t$, position after $N$ steps is exactly:
+  $$y_N = y_0 + \frac{N(N+1)}{2} g (\Delta t)^2$$
+  Comparing unit test results against the exact discrete recurrence formula ensures mathematically exact $10^{-5}$ tolerance verification.
 
-### 2.3 Structural Graph Stress Analysis vs. Finite Element Method (FEM)
-- **Decision**: Represent compound objects with a structural connectivity graph evaluating inter-shard stress rather than full continuum Finite Element Method (FEM) elasticity.
-- **Rationale**: Real-time FEM continuum simulation is computationally intensive and better suited for soft-body deformation. Structural connectivity graphs provide fast, predictable, real-time stress propagation across rigid body fragments, enabling instant fracture and cascading collapse.
+### 2.3 Zero-Length Vector Normalization & Singular Matrix Inversion
+- **Lesson**: Blindly dividing vectors by length or matrices by determinant leads to floating-point `NaN` or `Inf` propagation. In M1, `normalize()` explicitly returns `Vec3::zero()` if $\|v\| \le 10^{-6}$, and `Mat3::inverse()` checks $|\det(M)| \le 10^{-6}$, returning `Mat3::zero()` and an explicit `success` flag.
+
+### 2.4 Active Quaternion Rotation Convention
+- **Lesson**: Mixing active $v' = q v q^*$ and passive $v' = q^* v q$ quaternion rotation conventions leads to reversed rotation angles. In M1, Hamilton product order and $v' = q v q^*$ active rotation are strictly locked down, with explicit unit tests comparing $q \cdot v \cdot q^*$ directly against $R(q) \mathbf{v}$ matrix transformation.
 
 ---
 
@@ -40,7 +45,10 @@ This document records the architectural design decisions, technical trade-offs, 
 
 To maintain strict architectural focus and engineering quality, the following features are explicitly deferred or placed out of scope for Project 04:
 
-- **GPGPU Compute Shaders**: Dynamic surface deformation and GPU compute fields are explicitly deferred to **Project 05 — GPU Crater Simulator**.
-- **Entity-Component-System (ECS)**: Engine runtime entity systems are explicitly deferred to **Project 06 — Tiny Game Engine**.
-- **Soft Body / Deformable FEM**: Plastic soft-body continuum mechanics are out of scope; Project 04 focuses exclusively on rigid body dynamics and discrete procedural fracture.
-- **Premature Framework Extraction**: In accordance with the repository core principle, no code from Project 04 will be extracted into shared `libs/` until multi-project reuse is demonstrated in a future project.
+- **Voronoi Fracture & Mesh Clipping**: Deferred to **Milestone 2**.
+- **Collision Detection & Contact Manifolds (GJK/EPA/SAT)**: Deferred to **Milestone 3**.
+- **Sequential Impulse Constraint Solver & Friction**: Deferred to **Milestone 4**.
+- **Structural Connectivity Graph Stress Analysis**: Deferred to **Milestone 4**.
+- **Interactive 3D OpenGL Demo Application**: Deferred to **Milestone 5**.
+- **GPGPU Compute Shaders**: Explicitly deferred to **Project 05 — GPU Crater Simulator**.
+- **Entity-Component-System (ECS)**: Explicitly deferred to **Project 06 — Tiny Game Engine**.

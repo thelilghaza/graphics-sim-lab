@@ -36,40 +36,42 @@ The architecture is divided into seven decoupled core subsystems:
 +-----------------------------------------------------------------------------------+
 ```
 
-### 2.1 Math Subsystem (`destruction::math`)
-- **Vectors & Matrices**: `Vector3`, `Matrix3x3`, `Matrix4x4` supporting SSE/AVX SIMD acceleration (building on Project 03 vector intrinsics).
-- **Quaternions**: `Quaternion` for orientation tracking, smooth interpolation, and singularity-free rotation representation.
-- **Geometry Operations**: Plane equations, ray-plane intersections, polyhedral volume integration, and center-of-mass computations.
+### 2.1 Math Subsystem (`destruction::math`) — Implemented M1
+- **Vectors**: `Vec2`, `Vec3`, `Vec4` supporting arithmetic, dot product, cross product, normalization, zero-vector handling, and finite-state validation.
+- **Matrices**: `Mat3` 3x3 row-major matrix supporting identity, transpose, determinant, inverse with singular threshold ($|\det(M)| < 10^{-7}$), and rotation constructors.
+- **Quaternions**: `Quat` representing orientations $(w, x, y, z)$. Implements Hamilton multiplication, axis-angle construction, unit vector rotation $v' = q \cdot v \cdot q^*$, inverse, and conversion to/from `Mat3`.
+- **Rigid Transforms**: `Transform` combining position `Vec3` and orientation `Quat`. Implements `transform_point`, `inverse_transform_point`, `transform_direction`, `combine`, and `inverse`.
 
-### 2.2 Dynamics Subsystem (`destruction::dynamics`)
-- **Rigid Body State**: Tracks mass ($m$), inverse mass ($m^{-1}$), local/world inertia tensors ($I$, $I^{-1}$), position ($\mathbf{x}$), linear velocity ($\mathbf{v}$), orientation quaternion ($\mathbf{q}$), angular velocity ($\boldsymbol{\omega}$), force accumulator ($\mathbf{F}$), and torque accumulator ($\boldsymbol{\tau}$).
-- **Numerical Integrators**: Semi-implicit Euler (Symplectic Euler) integration as primary baseline, with support for Verlet and RK4 for validation.
-- **Inertia Tensor Computation**: Exact volumetric integration over polyhedral mesh shards to derive exact center-of-mass offsets and rotational inertia matrices.
+### 2.2 Dynamics Subsystem (`destruction::dynamics`) — Implemented M1
+- **Rigid Body State**: `RigidBody` tracking position ($\mathbf{x}$), linear velocity ($\mathbf{v}$), orientation quaternion ($\mathbf{q}$), angular velocity ($\boldsymbol{\omega}$), mass ($m$), inverse mass ($m^{-1}$), inertia tensor, force accumulator ($\mathbf{F}$), and torque accumulator ($\boldsymbol{\tau}$).
+- **Inertia Tensors**: `InertiaTensor` calculating body-space diagonal inertia tensors for box and sphere primitives and transforming inverse inertia to world space ($I_{world}^{-1} = R I_{body}^{-1} R^T$).
+- **Numerical Integrators**: `Integrator` implementing Symplectic Euler integration.
+- **Physics Scene Container**: `PhysicsWorld` managing rigid body vectors, applying gravity, driving deterministic fixed-step updates, and clearing accumulators.
 
-### 2.3 Fracture Subsystem (`destruction::fracture`)
+### 2.3 Fracture Subsystem (`destruction::fracture`) — Planned M2
 - **Voronoi Site Placement**: Deterministic 2D/3D site generation using impact-centered Poisson disc sampling or radial exponential distributions.
 - **Planar Bisector Mesh Clipping**: Sutherland-Hodgman / Weiler-Atherton extension clipping polyhedral faces against Voronoi cell bisector planes to derive convex shard geometries.
 - **Mesh UV & Face Generation**: Generates inner fracture face normals, texture coordinates, and mass assignment proportionally to fragment volume.
 
-### 2.4 Collision Subsystem (`destruction::collision`)
+### 2.4 Collision Subsystem (`destruction::collision`) — Planned M3
 - **Broadphase Spatial Indexing**: Dynamic AABB tree (Bounding Volume Hierarchy) providing $O(N \log N)$ pair pruning and fast bounding box overlap queries.
 - **Narrowphase Collision Detection**: Gilbert-Johnson-Keerthi (GJK) distance algorithm paired with Expanding Polytope Algorithm (EPA) or Separating Axis Theorem (SAT) to generate exact contact points, contact normals, and penetration depths.
 - **Contact Manifold Reduction**: Merges close contact points into stable 4-point contact manifolds per colliding body pair to ensure multi-point resting contact.
 
-### 2.5 Solver Subsystem (`destruction::solver`)
+### 2.5 Solver Subsystem (`destruction::solver`) — Planned M4
 - **Sequential Impulse Solver**: Projected Gauss-Seidel (PGS) iterative solver executing velocity impulses to satisfy non-penetration constraints.
 - **Friction Model**: Coulomb friction model calculating tangential friction impulses constrained by the friction coefficient $\mu$.
 - **Baumgarte Stabilization**: Position correction bias eliminating interpenetration slop without adding kinetic energy drift.
 
-### 2.6 Graph Subsystem (`destruction::graph`)
+### 2.6 Graph Subsystem (`destruction::graph`) — Planned M4
 - **Structural Connectivity Graph**: Nodes represent rigid body fragments; edges represent structural connections (shared face area, adhesive strength).
 - **Stress Evaluator**: Calculates normal and shear forces transmitted across edges based on external impact forces and gravity loads.
 - **Progressive Unbinding**: Severs edges when transmitted forces exceed stress thresholds, separating connected compound objects into independent rigid bodies.
 
-### 2.7 Render Subsystem (`destruction::render`)
+### 2.7 Render Subsystem (`destruction::render`) — Planned M5
 - **Real-Time Visualizer**: OpenGL 3.3 pipeline with dynamic VBO/VAO mesh updating for broken shards.
 - **Debugging Overlays**: Wireframe rendering, contact point vectors, contact normal visualization, and structural graph edge colorings.
-- **Headless Mode**: Off-screen PPM image export for automated CI testing and verification without display server dependencies.
+- **Headless Mode**: Off-screen PPM image export and console validation output for automated CI testing without display server dependencies.
 
 ---
 
@@ -93,7 +95,7 @@ The frame execution loop follows a strict step order:
   ├─► 3. Narrowphase GJK/EPA Contact Manifold Generation
   ├─► 4. Evaluate Structural Connectivity Graph Stress & Break Overloaded Edges
   ├─► 5. Sequential Impulse Solver Iterations (Velocity & Friction Impulses)
-  ├─► 6. Integrate Positions & Orientations (Semi-Implicit Euler)
+  ├─► 6. Integrate Positions & Orientations (Symplectic Euler)
   └─► 7. Baumgarte Position Correction & Sleep Deactivation
          │
          ▼
@@ -106,9 +108,9 @@ The frame execution loop follows a strict step order:
 
 To ensure predictable determinism while utilizing multi-core hardware, Project 04 adopts a staged threading architecture:
 
-1. **Deterministic Single-Threaded Step (Baseline)**: The core physics pipeline (broadphase, narrowphase, impulse solver, integration) runs sequentially on a single thread by default to establish ground-truth physical reproducibility.
-2. **Parallel Fracture Task Dispatch**: Voronoi planar clipping of individual fragments during a fracture event is embarrassingly parallel. Clipping tasks are dispatched to worker threads using the lock-free SPSC/MPMC queues developed in Project 03.
-3. **Parallel Broadphase & Narrowphase**: Broadphase tree updates and independent pair narrowphase GJK queries are partitioned across worker threads, gathering contact manifolds into thread-local buffers before merging.
+1. **Deterministic Single-Threaded Step (Baseline / Implemented M1)**: The core physics pipeline (broadphase, narrowphase, impulse solver, integration) runs sequentially on a single thread by default to establish ground-truth physical reproducibility.
+2. **Parallel Fracture Task Dispatch**: Voronoi planar clipping of individual fragments during a fracture event is embarrassingly parallel. Clipping tasks will be dispatched to worker threads using the lock-free SPSC/MPMC queues developed in Project 03.
+3. **Parallel Broadphase & Narrowphase**: Broadphase tree updates and independent pair narrowphase GJK queries will be partitioned across worker threads, gathering contact manifolds into thread-local buffers before merging.
 
 ---
 
@@ -125,20 +127,20 @@ Project 04 enforces strict memory ownership boundaries to eliminate dynamic heap
 ## 6. Numerical Integrators & Determinism
 
 ### 6.1 Numerical Integration Strategy
-Semi-Implicit Euler (Symplectic Euler) is the primary integrator:
+Symplectic Euler (Semi-Implicit Euler) is the implemented integrator:
 
 $$\mathbf{v}_{t+\Delta t} = \mathbf{v}_t + \left( \frac{\mathbf{F}_t}{m} \right) \Delta t$$
 
 $$\mathbf{x}_{t+\Delta t} = \mathbf{x}_t + \mathbf{v}_{t+\Delta t} \Delta t$$
 
-$$\boldsymbol{\omega}_{t+\Delta t} = \boldsymbol{\omega}_t + I^{-1} \left( \boldsymbol{\tau}_t - (\boldsymbol{\omega}_t \times I \boldsymbol{\omega}_t) \right) \Delta t$$
+$$\boldsymbol{\omega}_{t+\Delta t} = \boldsymbol{\omega}_t + I_{world}^{-1} \boldsymbol{\tau}_t \Delta t$$
 
-$$\mathbf{q}_{t+\Delta t} = \mathbf{q}_t + \frac{1}{2} \omega_q \mathbf{q}_t \Delta t, \quad \text{normalized}$$
+$$q_{t+\Delta t} = \text{normalize}\left(q_t + \frac{1}{2} \omega_q q_t \Delta t\right)$$
 
 ### 6.2 Determinism Guarantees
-- **Fixed Timestep**: Physics updates operate strictly on a fixed sub-step $\Delta t = 1/60\text{ s}$ ($16.66\text{ ms}$) or $\Delta t = 1/120\text{ s}$ ($8.33\text{ ms}$).
+- **Fixed Timestep**: Physics updates operate strictly on a fixed sub-step $\Delta t = 1/60\text{ s}$ ($16.66\text{ ms}$).
 - **Random Seed Isolation**: Voronoi generator sites use explicitly seeded pseudo-random number generators (PRNG) to ensure identical fracture patterns across test runs.
-- **Constraint Ordering**: Contact constraints are sorted deterministically by body pair indices before executing impulse iterations.
+- **State Signature Checksum**: Verified via `val_dynamics_headless` (`0x40F6B6A4`).
 
 ---
 
@@ -146,18 +148,19 @@ $$\mathbf{q}_{t+\Delta t} = \mathbf{q}_t + \frac{1}{2} \omega_q \mathbf{q}_t \De
 
 Verification follows a multi-layer testing protocol across CTest suites:
 
-1. **Analytical Physics Verification (`test_destruction_dynamics`)**:
-   - Free-fall under gravity matches analytical position equation $y(t) = y_0 - \frac{1}{2} g t^2$.
-   - Conservation of linear and angular momentum in isolated two-body collisions within $10^{-5}$ tolerance.
-   - Inertia tensor calculation validation against analytical box and sphere inertia formulas.
-2. **Voronoi & Geometry Verification (`test_destruction_fracture`)**:
+1. **Analytical Physics Verification (`test_dynamics_math` - PASSED)**:
+   - Free-fall under gravity matches exact Symplectic Euler discrete recurrence formula.
+   - Vector, matrix, quaternion, and transform arithmetic and rotation equivalence verified.
+   - Inertia tensor calculation validation against analytical box and sphere formulas.
+   - Deterministic repeat simulation bitwise state match verified.
+2. **Voronoi & Geometry Verification (`test_destruction_fracture` - Planned M2)**:
    - Conservation of mass: Sum of fragment masses equals original unbroken body mass.
    - Volume preservation: Sum of Voronoi fragment volumes equals original polyhedral mesh volume within $10^{-4}$ tolerance.
    - Watertight mesh validation: Every generated shard mesh is closed and manifold.
-3. **Collision & Manifold Verification (`test_destruction_collision`)**:
+3. **Collision & Manifold Verification (`test_destruction_collision` - Planned M3)**:
    - GJK distance accuracy for non-overlapping convex objects.
    - EPA penetration depth and contact normal accuracy for interpenetrating boxes.
-4. **Constraint Solver Stability Verification (`test_destruction_solver`)**:
+4. **Constraint Solver Stability Verification (`test_destruction_solver` - Planned M4)**:
    - Resting stack test: A 5-box vertical stack must remain stable under gravity for 1,000 steps with total displacement $< 1.0\text{ mm}$.
    - Static friction test: A block resting on an inclined plane must remain stationary up to the critical slope angle $\theta = \arctan(\mu)$.
 
