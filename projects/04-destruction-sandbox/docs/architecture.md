@@ -48,10 +48,13 @@ The architecture is divided into seven decoupled core subsystems:
 - **Numerical Integrators**: `Integrator` implementing Symplectic Euler integration.
 - **Physics Scene Container**: `PhysicsWorld` managing rigid body vectors, applying gravity, driving deterministic fixed-step updates, and clearing accumulators.
 
-### 2.3 Fracture Subsystem (`destruction::fracture`) — Planned M2
-- **Voronoi Site Placement**: Deterministic 2D/3D site generation using impact-centered Poisson disc sampling or radial exponential distributions.
-- **Planar Bisector Mesh Clipping**: Sutherland-Hodgman / Weiler-Atherton extension clipping polyhedral faces against Voronoi cell bisector planes to derive convex shard geometries.
-- **Mesh UV & Face Generation**: Generates inner fracture face normals, texture coordinates, and mass assignment proportionally to fragment volume.
+### 2.3 Fracture Subsystem (`destruction::fracture`) — Implemented M2
+- **Source Fracture Volume**: `FractureVolume` defining source cuboid bounding boxes, volume, centroid, and material density.
+- **Deterministic Site Placement**: `SiteGenerator` executing deterministic Poisson-disc site sampling in 2D and 3D with Xorshift32 PRNG and configurable minimum distance constraints.
+- **2D & 3D Voronoi Generators**: `Voronoi2D` and `Voronoi3D` computing cell partitioning by clipping source volumes against perpendicular bisector half-planes.
+- **3D Polyhedron Half-Space Clipper**: `Clipper3D` clipping convex polyhedra faces against planes and constructing closed cap-faces via orthonormal 2D basis sorting around plane normals.
+- **Mesh Topology Validator**: `MeshValidator` verifying structural, geometric, and closed-manifold edge topological invariants (every undirected edge shared by exactly 2 faces).
+- **Mesh Exporter**: `ObjExporter` outputting Wavefront OBJ geometry files containing separate shard groups (`g shard_XX`) for external visualization.
 
 ### 2.4 Collision Subsystem (`destruction::collision`) — Planned M3
 - **Broadphase Spatial Indexing**: Dynamic AABB tree (Bounding Volume Hierarchy) providing $O(N \log N)$ pair pruning and fast bounding box overlap queries.
@@ -108,7 +111,7 @@ The frame execution loop follows a strict step order:
 
 To ensure predictable determinism while utilizing multi-core hardware, Project 04 adopts a staged threading architecture:
 
-1. **Deterministic Single-Threaded Step (Baseline / Implemented M1)**: The core physics pipeline (broadphase, narrowphase, impulse solver, integration) runs sequentially on a single thread by default to establish ground-truth physical reproducibility.
+1. **Deterministic Single-Threaded Step (Baseline / Implemented M1 & M2)**: Core physics integration and Voronoi cell geometry partitioning run sequentially on a single thread by default to establish ground-truth physical reproducibility.
 2. **Parallel Fracture Task Dispatch**: Voronoi planar clipping of individual fragments during a fracture event is embarrassingly parallel. Clipping tasks will be dispatched to worker threads using the lock-free SPSC/MPMC queues developed in Project 03.
 3. **Parallel Broadphase & Narrowphase**: Broadphase tree updates and independent pair narrowphase GJK queries will be partitioned across worker threads, gathering contact manifolds into thread-local buffers before merging.
 
@@ -153,10 +156,10 @@ Verification follows a multi-layer testing protocol across CTest suites:
    - Vector, matrix, quaternion, and transform arithmetic and rotation equivalence verified.
    - Inertia tensor calculation validation against analytical box and sphere formulas.
    - Deterministic repeat simulation bitwise state match verified.
-2. **Voronoi & Geometry Verification (`test_destruction_fracture` - Planned M2)**:
-   - Conservation of mass: Sum of fragment masses equals original unbroken body mass.
-   - Volume preservation: Sum of Voronoi fragment volumes equals original polyhedral mesh volume within $10^{-4}$ tolerance.
-   - Watertight mesh validation: Every generated shard mesh is closed and manifold.
+2. **Voronoi & Geometry Verification (`test_fracture_geometry` - PASSED)**:
+   - Conservation of mass: Sum of fragment masses equals original unbroken body mass ($0.0000\%$ error).
+   - Volume preservation: Sum of Voronoi fragment volumes equals original polyhedral mesh volume ($0.0000\%$ error).
+   - Watertight mesh validation: Every generated shard mesh is closed and manifold (`MeshValidator`).
 3. **Collision & Manifold Verification (`test_destruction_collision` - Planned M3)**:
    - GJK distance accuracy for non-overlapping convex objects.
    - EPA penetration depth and contact normal accuracy for interpenetrating boxes.
@@ -170,7 +173,7 @@ Verification follows a multi-layer testing protocol across CTest suites:
 
 | Risk Factor | Potential Impact | Architectural Mitigation Strategy |
 | :--- | :--- | :--- |
-| **Degenerate Voronoi Geometry** | Near-coplanar bisector planes cause zero-volume or invalid non-manifold shard meshes. | Implement robust epsilon tolerance checks ($\epsilon = 10^{-6}$), vertex welding, and fallback planar bisector clipping. |
+| **Degenerate Voronoi Geometry** | Near-coplanar bisector planes cause zero-volume or invalid non-manifold shard meshes. | Implement robust epsilon tolerance checks ($\epsilon = 10^{-5}$), vertex welding, and fallback planar bisector clipping. |
 | **High-Velocity Tunneling** | Fast projectiles pass through thin structural walls without colliding. | Implement continuous collision detection (CCD) or ray-cast sweep broadphase for high-velocity projectiles. |
 | **Constraint Solver Jitter** | Contact impulse solver creates visual shaking or energy gain in dense resting piles. | Utilize split impulses (separating velocity update from position correction) and warm-start contact impulses from previous frame. |
 | **Voronoi Fracture Bottlenecks** | Dynamic mesh clipping of 100+ sites causes frame rate drops. | Asynchronously partition Voronoi cell clipping across worker threads using Project 03 thread pools and preallocated arenas. |

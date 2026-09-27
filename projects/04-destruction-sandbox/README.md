@@ -1,6 +1,6 @@
 # Project 04: Procedural Destruction Sandbox
 
-*Status: Milestone 1 Complete (Rigid Body Kinematics, Integrators & Math Foundation)*
+*Status: Milestone 2 Complete (Voronoi 2D/3D Partitioning & Dynamic Mesh Geometry Fracturing)*
 
 ---
 
@@ -15,7 +15,7 @@ Building upon the foundations established in previous projects—ray-geometry ma
 ## Technical Objectives
 
 1. **Deterministic Math & Kinematics Foundation (Milestone 1)**: Provide robust 2D/3D vectors, 3x3 matrices, quaternions, rigid transforms, diagonal inertia tensors, rigid body state, force/torque accumulators, and Symplectic Euler integration.
-2. **Procedural Geometry Fracturing**: Implement 2D/3D Voronoi partitioning and planar cell clipping to procedurally shatter convex polyhedral meshes into realistic fragment shards.
+2. **Procedural Geometry Fracturing (Milestone 2)**: Implement 2D/3D Voronoi partitioning and planar cell clipping to procedurally shatter convex polyhedral meshes into realistic fragment shards with exact mass and volume conservation.
 3. **Collision Detection & Manifold Generation**: Build a two-stage collision pipeline consisting of broadphase dynamic AABB tree spatial indexing and narrowphase GJK/EPA/SAT contact manifold extraction (contact points, normals, penetration depths).
 4. **Impulse-Based Constraint Solver**: Develop a Sequential Impulse / Projected Gauss-Seidel solver resolving contact response, linear/angular friction, restitution, and Baumgarte position stabilization without energy gain or jitter.
 5. **Structural Connectivity Graph**: Evaluate adhesive bonds and stress propagation across adjacent fragments to trigger progressive structural collapse when critical load thresholds are exceeded.
@@ -34,19 +34,19 @@ Building upon the foundations established in previous projects—ray-geometry ma
 
 ---
 
-## Mathematical & Physical Conventions (Milestone 1)
+## Mathematical & Physical Conventions
 
 - **Coordinate System**: Right-handed 3D system. $+Y$ is World-Up, $+X$ is Right, $-Z$ is Forward. Units: meters ($\text{m}$), seconds ($\text{s}$), kilograms ($\text{kg}$), radians ($\text{rad}$).
 - **Quaternion Convention**: $q = (w, x, y, z)$ with scalar real component $w$ and vector imaginary component $(x, y, z)$. Active column vector rotation via $v' = q \cdot v \cdot q^*$. Hamilton multiplication order.
 - **Matrix Convention**: 3x3 row-major storage. Column vectors conceptually ($\mathbf{v}' = M \mathbf{v}$). Singular threshold $|\det(M)| < 10^{-7}$.
 - **Rigid Transform**: $T = (t, q)$ where point transformation is $R(q) \cdot p + t$ and direction transformation is $R(q) \cdot d$.
-- **Inertia Tensor**: Body-space diagonal inertia $I_{body} = \text{diag}(I_{xx}, I_{yy}, I_{zz})$ transformed to world-space via $I_{world}^{-1} = R I_{body}^{-1} R^T$.
-- **Numerical Integrator**: Symplectic Euler (Semi-Implicit Euler):
-  $$\mathbf{v}_{t+\Delta t} = \mathbf{v}_t + (m^{-1} \mathbf{F}_{accum}) \Delta t$$
-  $$\mathbf{x}_{t+\Delta t} = \mathbf{x}_t + \mathbf{v}_{t+\Delta t} \Delta t$$
-  $$\boldsymbol{\omega}_{t+\Delta t} = \boldsymbol{\omega}_t + (I_{world}^{-1} \boldsymbol{\tau}_{accum}) \Delta t$$
-  $$q_{t+\Delta t} = \text{normalize}\left(q_t + \frac{1}{2} \omega_q q_t \Delta t\right)$$
-- **Static Body Representation**: Infinite mass / static bodies set `mass = 0`, `inv_mass = 0`, `body_inv_inertia = (0,0,0)`, and `is_static = true`. Force and torque applications are ignored.
+- **Voronoi Bisector Half-Space**: Pairwise bisector plane between site $\mathbf{p}_i$ and competing site $\mathbf{p}_j$:
+  $$\mathbf{n} = \frac{\mathbf{p}_j - \mathbf{p}_i}{\|\mathbf{p}_j - \mathbf{p}_i\|}, \quad \mathbf{m} = \frac{1}{2}(\mathbf{p}_i + \mathbf{p}_j), \quad d = -\mathbf{n} \cdot \mathbf{m}$$
+  Points $\mathbf{x}$ inside cell $i$ satisfy $\mathbf{n} \cdot \mathbf{x} + d \le 0$. Opposite cell $j$ uses opposite plane $-\mathbf{n}$ and $-d$.
+- **Convex Polyhedron Volume & Centroid**: Tetrahedral fan decomposition from interior reference point $\mathbf{r}$:
+  $$V = \frac{1}{6} \sum (\mathbf{v}_0 - \mathbf{r}) \cdot \left((\mathbf{v}_k - \mathbf{r}) \times (\mathbf{v}_{k+1} - \mathbf{r})\right)$$
+  $$\mathbf{C} = \frac{1}{V} \sum V_{tet} \mathbf{c}_{tet}, \quad \mathbf{c}_{tet} = \frac{1}{4}(\mathbf{r} + \mathbf{v}_0 + \mathbf{v}_k + \mathbf{v}_{k+1})$$
+- **Mass Assignment**: $m_{shard} = \text{density} \times V_{shard}$. Sum of shard volumes/masses conserves source volume/mass ($\sum V_{shard} \approx V_{source}$).
 
 ---
 
@@ -63,7 +63,7 @@ projects/04-destruction-sandbox/
 │   └── destruction/
 │       ├── math/               # Vec2, Vec3, Vec4, Mat3, Quat, Transform, MathUtils
 │       ├── dynamics/           # RigidBody state, InertiaTensor, Integrator, PhysicsWorld
-│       ├── fracture/           # Voronoi 2D/3D generators, planar mesh clippers (Planned M2)
+│       ├── fracture/           # Plane, Polygon2D, Voronoi2D, Polyhedron, Clipper3D, Volume, Sites, Shard, Validator, Voronoi3D, ObjExporter
 │       ├── collision/          # Broadphase AABB tree, narrowphase GJK/EPA (Planned M3)
 │       ├── solver/             # Sequential impulse solver, friction, PGS (Planned M4)
 │       ├── graph/              # Structural connectivity graph, stress (Planned M4)
@@ -71,7 +71,9 @@ projects/04-destruction-sandbox/
 ├── src/                        # Subsystem implementations
 ├── tests/                      # Automated unit and invariant test suites
 │   ├── test_dynamics_math.cpp  # Milestone 1 math and dynamics unit tests
-│   └── val_dynamics_headless.cpp # Milestone 1 headless regression executable
+│   ├── val_dynamics_headless.cpp # Milestone 1 headless regression executable
+│   ├── test_fracture_geometry.cpp # Milestone 2 2D/3D Voronoi fracture unit tests
+│   └── demo_fracture.cpp       # Milestone 2 headless OBJ export demo
 ├── benchmarks/                 # Micro-benchmarks for fracture and physics performance
 └── assets/                     # Demo scene configurations and mesh presets
 ```
@@ -88,10 +90,11 @@ projects/04-destruction-sandbox/
 - Implemented Symplectic Euler numerical integration and deterministic `PhysicsWorld` container with configurable gravity.
 - Verified with unit test suite (`test_dynamics_math`) and headless regression executable (`val_dynamics_headless`).
 
-### Milestone 2: Voronoi 2D/3D Partitioning & Dynamic Mesh Fracturing (PLANNED)
-- Implement 2D/3D Voronoi site placement and planar bisector mesh clipping algorithms.
-- Generate watertight, convex polyhedral fragment meshes with consistent material coordinates.
-- Verify volume preservation, mass allocation, and manifold topological integrity.
+### Milestone 2: Voronoi 2D/3D Partitioning & Dynamic Mesh Fracturing (COMPLETE)
+- Implemented 2D/3D Voronoi site placement (`SiteGenerator`), 2D polygon clipping (`Polygon2D`), 3D convex polyhedron half-space clipping (`Clipper3D`), cap-face generation, and vertex welding.
+- Implemented exact tetrahedral decomposition for convex polyhedral volume, mass, and centroid calculations.
+- Implemented topological closed-manifold edge validator (`MeshValidator`), Wavefront OBJ exporter (`ObjExporter`), and headless fracture demo (`demo_fracture`).
+- Verified volume and mass conservation ($0.0000\%$ relative error) across symmetric, multi-site, and translated source boxes (`test_fracture_geometry`).
 
 ### Milestone 3: Collision Detection & Contact Manifold Generation (PLANNED)
 - Implement dynamic AABB tree broadphase spatial indexing for fast pair pruning.
@@ -121,7 +124,7 @@ projects/04-destruction-sandbox/
 
 ## Verification & Quality Discipline
 
-- **Correctness First**: All algorithms verified with automated CTest suites (`test_dynamics_math`, `val_dynamics_headless`).
+- **Correctness First**: All algorithms verified with automated CTest suites (`test_dynamics_math`, `val_dynamics_headless`, `test_fracture_geometry`, `demo_fracture`).
 - **Determinism**: Fixed random seeds for Voronoi site placement and deterministic sub-stepping delta time ($\Delta t = 1/60\text{ s}$). State signature checksum validation (`0x40F6B6A4`).
-- **Zero Energy Drift**: Physics integration validated against analytical energy and momentum conservation equations.
+- **Volume & Mass Conservation**: $0.0000\%$ relative conservation error on 3D Voronoi partitioning tests.
 - **No Emojis**: Strict enforcement of clean professional documentation across all source files, headers, CLI logs, and reports.

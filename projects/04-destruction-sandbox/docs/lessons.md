@@ -41,12 +41,28 @@ This document records the architectural design decisions, technical trade-offs, 
 
 ---
 
-## 3. Explicit Scope Boundaries & Non-Goals
+## 3. Milestone 2 Engineering Lessons & Design Decisions
+
+### 3.1 Pairwise Canonical Bisector Planes for Shared-Face Consistency
+- **Lesson**: If neighboring Voronoi cells $i$ and $j$ derive bisector planes independently using slightly different floating-point calculations, their common shared face will possess divergent plane coefficients. In M2, the canonical bisector plane between $\mathbf{p}_i$ and $\mathbf{p}_j$ is derived with normal $\mathbf{n} = \frac{\mathbf{p}_j - \mathbf{p}_i}{\|\mathbf{p}_j - \mathbf{p}_i\|}$ and midpoint $\mathbf{m} = \frac{1}{2}(\mathbf{p}_i + \mathbf{p}_j)$. Cell $i$ uses half-space $\mathbf{n} \cdot \mathbf{x} + d \le 0$, while cell $j$ uses flipped plane $-\mathbf{n}$ and $-d$. This guarantees bitwise identical shared-face geometry across adjacent cell boundaries.
+
+### 3.2 Cap-Face Construction via Orthonormal 2D Polar Sorting
+- **Lesson**: When a plane clips a convex polyhedron, intersection points on the clipping plane must be ordered into a valid closed polygon. Simply appending points in traversal order produces self-intersecting bow-tie polygons. In M2, intersection points on the plane are collected, deduplicated within $\epsilon = 10^{-5}$, projected into a 2D orthonormal basis $(\mathbf{u}, \mathbf{v})$ on the plane, sorted by polar angle $\theta = \text{atan2}(v, u)$ around the cap centroid, and emitted as a counter-clockwise cap face matching the plane's outward-pointing normal.
+
+### 3.3 Exact Polyhedral Volume & Centroid via Tetrahedral Fan Decomposition
+- **Lesson**: Averaging vertices does not yield the true volume centroid (center of mass) of a non-uniform or non-symmetric polyhedron. In M2, volume and centroid are computed by choosing an interior reference point $\mathbf{r}$ (vertex average) and decomposing each face into tetrahedra $(\mathbf{r}, \mathbf{v}_0, \mathbf{v}_k, \mathbf{v}_{k+1})$. Summing signed tetrahedral volumes $V_{tet} = \frac{1}{6} (\mathbf{v}_0 - \mathbf{r}) \cdot \left((\mathbf{v}_k - \mathbf{r}) \times (\mathbf{v}_{k+1} - \mathbf{r})\right)$ and volume-weighted centroids $\mathbf{C} = \frac{1}{V} \sum V_{tet} \mathbf{c}_{tet}$ yields exact $0.0000\%$ volume and mass conservation even for translated boxes away from the origin.
+
+### 3.4 Topological Closed-Manifold Edge Validation
+- **Lesson**: Geometric volume calculation alone cannot detect unclosed polyhedral meshes or internal boundary holes. In M2, `MeshValidator` constructs an undirected edge map $(\min(v_a, v_b), \max(v_a, v_b))$ across all faces. For a valid closed convex polyhedron, EVERY undirected edge MUST be shared by exactly two faces (boundary edge count = 0).
+
+---
+
+## 4. Explicit Scope Boundaries & Non-Goals
 
 To maintain strict architectural focus and engineering quality, the following features are explicitly deferred or placed out of scope for Project 04:
 
-- **Voronoi Fracture & Mesh Clipping**: Deferred to **Milestone 2**.
 - **Collision Detection & Contact Manifolds (GJK/EPA/SAT)**: Deferred to **Milestone 3**.
+- **Broadphase Dynamic AABB Tree**: Deferred to **Milestone 3**.
 - **Sequential Impulse Constraint Solver & Friction**: Deferred to **Milestone 4**.
 - **Structural Connectivity Graph Stress Analysis**: Deferred to **Milestone 4**.
 - **Interactive 3D OpenGL Demo Application**: Deferred to **Milestone 5**.
