@@ -5,9 +5,11 @@
 #include "performance_lab/workingset_benchmark.hpp"
 
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <vector>
 
 using namespace performance_lab;
@@ -23,6 +25,12 @@ int main(int argc, char** argv) {
     if (!BenchCLI::parse(argc, argv, base_config)) {
         return 0;
     }
+
+    std::string csv_path = base_config.csv_path;
+    bool overwrite_csv = base_config.overwrite_csv;
+    base_config.csv_path.clear();
+
+    std::vector<BenchResult> all_results;
 
     // =========================================================================
     // SECTION 1 — Sequential Traversal: AoS vs SoA vs AoSoA
@@ -58,12 +66,13 @@ int main(int argc, char** argv) {
         config.total_bytes = logical_bytes;
 
         double final_sum = 0.0;
-        BenchRunner::run(config, [&]() {
+        auto res = BenchRunner::run(config, [&]() {
             double sum = compute_checksum_aos(data_aos);
             do_not_optimize(sum);
             final_sum = sum;
         });
         do_not_optimize(final_sum);
+        all_results.push_back(res);
     }
 
     // 1B. SoA Sequential
@@ -74,12 +83,13 @@ int main(int argc, char** argv) {
         config.total_bytes = logical_bytes;
 
         double final_sum = 0.0;
-        BenchRunner::run(config, [&]() {
+        auto res = BenchRunner::run(config, [&]() {
             double sum = compute_checksum_soa(data_soa);
             do_not_optimize(sum);
             final_sum = sum;
         });
         do_not_optimize(final_sum);
+        all_results.push_back(res);
     }
 
     // 1C. AoSoA Sequential (Tile Width = 16)
@@ -90,12 +100,13 @@ int main(int argc, char** argv) {
         config.total_bytes = logical_bytes;
 
         double final_sum = 0.0;
-        BenchRunner::run(config, [&]() {
+        auto res = BenchRunner::run(config, [&]() {
             double sum = compute_checksum_aosoa(data_aosoa);
             do_not_optimize(sum);
             final_sum = sum;
         });
         do_not_optimize(final_sum);
+        all_results.push_back(res);
     }
 
     // =========================================================================
@@ -117,12 +128,13 @@ int main(int argc, char** argv) {
         config.total_bytes = stride_access_count * sizeof(float); // Logical accessed bytes
 
         float final_sum = 0.0f;
-        BenchRunner::run(config, [&]() {
+        auto res = BenchRunner::run(config, [&]() {
             float sum = run_stride_access(buffer, stride_access_count, stride);
             do_not_optimize(sum);
             final_sum = sum;
         });
         do_not_optimize(final_sum);
+        all_results.push_back(res);
     }
 
     // =========================================================================
@@ -163,12 +175,54 @@ int main(int argc, char** argv) {
         config.total_bytes = ws_bytes;
 
         float final_sum = 0.0f;
-        BenchRunner::run(config, [&]() {
+        auto res = BenchRunner::run(config, [&]() {
             float sum = run_workingset_pass(buffer);
             do_not_optimize(sum);
             final_sum = sum;
         });
         do_not_optimize(final_sum);
+        all_results.push_back(res);
+    }
+
+    // CSV EXPORT
+    if (!csv_path.empty()) {
+        std::ifstream check_file(csv_path.c_str());
+        bool file_exists = check_file.good();
+        check_file.close();
+
+        if (file_exists && !overwrite_csv) {
+            std::cerr << "[CSV Error] Target CSV file already exists and --overwrite was not set: " << csv_path << "\n";
+            return 1;
+        }
+
+        std::ofstream csv(csv_path.c_str(), std::ios::out | std::ios::trunc);
+        if (!csv.is_open()) {
+            std::cerr << "[CSV Error] Failed to open CSV file for writing: " << csv_path << "\n";
+            return 1;
+        }
+
+        csv << "benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec\n";
+        for (const auto& r : all_results) {
+            csv << "\"" << r.config.name << "\",\""
+                << r.config.workload_name << "\",\""
+                << r.build_config << "\",\""
+                << r.compiler_info << "\",\""
+                << r.arch_info << "\",\""
+                << r.os_info << "\","
+                << r.config.warmups << ","
+                << r.config.iterations << ","
+                << std::fixed << std::setprecision(4)
+                << r.mean_us << ","
+                << r.median_us << ","
+                << r.stddev_us << ","
+                << r.min_us << ","
+                << r.max_us << ","
+                << std::fixed << std::setprecision(2)
+                << r.ops_per_sec << ","
+                << (r.config.total_bytes > 0 ? std::to_string(r.mb_per_sec) : "")
+                << "\n";
+        }
+        std::cout << "\n[CSV Export] All " << all_results.size() << " benchmark results successfully written to: " << csv_path << "\n";
     }
 
     std::cout << "\n[Cache Locality Benchmarks Complete] All benchmark workloads finished successfully.\n";

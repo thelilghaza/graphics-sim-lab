@@ -6,9 +6,11 @@
 #include "performance_lab/simd_kernel_ray_box.hpp"
 
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <vector>
 
 using namespace performance_lab;
@@ -25,6 +27,12 @@ int main(int argc, char** argv) {
     if (!BenchCLI::parse(argc, argv, base_config)) {
         return 0;
     }
+
+    std::string csv_path = base_config.csv_path;
+    bool overwrite_csv = base_config.overwrite_csv;
+    base_config.csv_path.clear();
+
+    std::vector<BenchResult> all_results;
 
     const std::vector<size_t> dataset_sizes = {16'384, 1'048'576, 16'777'216}; // 16K, 1M, 16M floats
 
@@ -70,12 +78,13 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             float final_res = 0.0f;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 float sum = kernel_dot_scalar_reference(a.data(), b.data(), c.data(), N);
                 do_not_optimize(sum);
                 final_res = sum;
             });
             do_not_optimize(final_res);
+            all_results.push_back(res);
         }
 
         // A2. Compiler Opt
@@ -86,12 +95,13 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             float final_res = 0.0f;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 float sum = kernel_dot_compiler_opt(a.data(), b.data(), c.data(), N);
                 do_not_optimize(sum);
                 final_res = sum;
             });
             do_not_optimize(final_res);
+            all_results.push_back(res);
         }
 
         // A3. SSE Intrinsic
@@ -102,12 +112,13 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             float final_res = 0.0f;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 float sum = kernel_dot_sse(a.data(), b.data(), c.data(), N);
                 do_not_optimize(sum);
                 final_res = sum;
             });
             do_not_optimize(final_res);
+            all_results.push_back(res);
         }
 
         // A4. AVX2 Intrinsic
@@ -118,12 +129,13 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             float final_res = 0.0f;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 float sum = kernel_dot_avx2(a.data(), b.data(), c.data(), N);
                 do_not_optimize(sum);
                 final_res = sum;
             });
             do_not_optimize(final_res);
+            all_results.push_back(res);
         }
     }
 
@@ -149,7 +161,7 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             std::vector<float> y_work = y_base;
-            BenchRunner::run_with_setup(
+            auto res = BenchRunner::run_with_setup(
                 config,
                 [&]() { y_work = y_base; },
                 [&]() {
@@ -158,6 +170,7 @@ int main(int argc, char** argv) {
                 },
                 [&]() {}
             );
+            all_results.push_back(res);
         }
 
         // B2. Compiler Opt
@@ -168,7 +181,7 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             std::vector<float> y_work = y_base;
-            BenchRunner::run_with_setup(
+            auto res = BenchRunner::run_with_setup(
                 config,
                 [&]() { y_work = y_base; },
                 [&]() {
@@ -177,6 +190,7 @@ int main(int argc, char** argv) {
                 },
                 [&]() {}
             );
+            all_results.push_back(res);
         }
 
         // B3. SSE Intrinsic
@@ -187,7 +201,7 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             std::vector<float> y_work = y_base;
-            BenchRunner::run_with_setup(
+            auto res = BenchRunner::run_with_setup(
                 config,
                 [&]() { y_work = y_base; },
                 [&]() {
@@ -196,6 +210,7 @@ int main(int argc, char** argv) {
                 },
                 [&]() {}
             );
+            all_results.push_back(res);
         }
 
         // B4. AVX2 Intrinsic
@@ -206,7 +221,7 @@ int main(int argc, char** argv) {
             config.total_bytes = bytes;
 
             std::vector<float> y_work = y_base;
-            BenchRunner::run_with_setup(
+            auto res = BenchRunner::run_with_setup(
                 config,
                 [&]() { y_work = y_base; },
                 [&]() {
@@ -215,6 +230,7 @@ int main(int argc, char** argv) {
                 },
                 [&]() {}
             );
+            all_results.push_back(res);
         }
     }
 
@@ -271,7 +287,7 @@ int main(int argc, char** argv) {
             config.total_operations = num_packets * 4; // 200,000 ray-box tests
 
             uint32_t total_hits = 0;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 uint32_t hits = 0;
                 for (size_t i = 0; i < num_packets; ++i) {
                     hits += kernel_ray_box_4_scalar_reference(packets4[i], box);
@@ -280,6 +296,7 @@ int main(int argc, char** argv) {
                 total_hits = hits;
             });
             do_not_optimize(total_hits);
+            all_results.push_back(res);
         }
 
         // C2. Compiler Opt (4-wide)
@@ -289,7 +306,7 @@ int main(int argc, char** argv) {
             config.total_operations = num_packets * 4;
 
             uint32_t total_hits = 0;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 uint32_t hits = 0;
                 for (size_t i = 0; i < num_packets; ++i) {
                     hits += kernel_ray_box_4_compiler_opt(packets4[i], box);
@@ -298,6 +315,7 @@ int main(int argc, char** argv) {
                 total_hits = hits;
             });
             do_not_optimize(total_hits);
+            all_results.push_back(res);
         }
 
         // C3. SSE 4-Wide
@@ -307,7 +325,7 @@ int main(int argc, char** argv) {
             config.total_operations = num_packets * 4;
 
             uint32_t total_hits = 0;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 uint32_t hits = 0;
                 for (size_t i = 0; i < num_packets; ++i) {
                     hits += kernel_ray_box_4_sse(packets4[i], box);
@@ -316,6 +334,7 @@ int main(int argc, char** argv) {
                 total_hits = hits;
             });
             do_not_optimize(total_hits);
+            all_results.push_back(res);
         }
 
         // C4. AVX2 8-Wide
@@ -325,7 +344,7 @@ int main(int argc, char** argv) {
             config.total_operations = num_packets * 8; // 400,000 ray-box tests
 
             uint32_t total_hits = 0;
-            BenchRunner::run(config, [&]() {
+            auto res = BenchRunner::run(config, [&]() {
                 uint32_t hits = 0;
                 for (size_t i = 0; i < num_packets; ++i) {
                     hits += kernel_ray_box_8_avx2(packets8[i], box);
@@ -334,7 +353,49 @@ int main(int argc, char** argv) {
                 total_hits = hits;
             });
             do_not_optimize(total_hits);
+            all_results.push_back(res);
         }
+    }
+
+    // CSV EXPORT
+    if (!csv_path.empty()) {
+        std::ifstream check_file(csv_path.c_str());
+        bool file_exists = check_file.good();
+        check_file.close();
+
+        if (file_exists && !overwrite_csv) {
+            std::cerr << "[CSV Error] Target CSV file already exists and --overwrite was not set: " << csv_path << "\n";
+            return 1;
+        }
+
+        std::ofstream csv(csv_path.c_str(), std::ios::out | std::ios::trunc);
+        if (!csv.is_open()) {
+            std::cerr << "[CSV Error] Failed to open CSV file for writing: " << csv_path << "\n";
+            return 1;
+        }
+
+        csv << "benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec\n";
+        for (const auto& r : all_results) {
+            csv << "\"" << r.config.name << "\",\""
+                << r.config.workload_name << "\",\""
+                << r.build_config << "\",\""
+                << r.compiler_info << "\",\""
+                << r.arch_info << "\",\""
+                << r.os_info << "\","
+                << r.config.warmups << ","
+                << r.config.iterations << ","
+                << std::fixed << std::setprecision(4)
+                << r.mean_us << ","
+                << r.median_us << ","
+                << r.stddev_us << ","
+                << r.min_us << ","
+                << r.max_us << ","
+                << std::fixed << std::setprecision(2)
+                << r.ops_per_sec << ","
+                << (r.config.total_bytes > 0 ? std::to_string(r.mb_per_sec) : "")
+                << "\n";
+        }
+        std::cout << "\n[CSV Export] All " << all_results.size() << " benchmark results successfully written to: " << csv_path << "\n";
     }
 
     std::cout << "\n[SIMD Benchmarks Complete] All SIMD workloads finished successfully.\n";

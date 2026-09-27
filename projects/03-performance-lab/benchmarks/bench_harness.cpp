@@ -1,9 +1,12 @@
 #include "performance_lab/bench_runner.hpp"
 #include "performance_lab/compiler_barrier.hpp"
 
+#include <fstream>
+#include <iomanip>
 #include <iostream>
-#include <vector>
 #include <numeric>
+#include <string>
+#include <vector>
 
 using namespace performance_lab;
 
@@ -19,6 +22,13 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    std::string csv_path = base_config.csv_path;
+    bool overwrite_csv = base_config.overwrite_csv;
+    base_config.csv_path.clear();
+
+    std::vector<BenchResult> all_results;
+    all_results.reserve(4);
+
     // 1. Workload A: Integer Accumulation Loop
     {
         BenchConfig config = base_config;
@@ -26,7 +36,7 @@ int main(int argc, char** argv) {
         config.total_operations = 1'000'000;
 
         uint64_t sum = 0;
-        BenchRunner::run_with_setup(
+        auto res = BenchRunner::run_with_setup(
             config,
             [&]() { sum = 0; },
             [&]() {
@@ -39,6 +49,7 @@ int main(int argc, char** argv) {
             },
             [&]() { do_not_optimize(sum); }
         );
+        all_results.push_back(res);
     }
 
     // 2. Workload B: Floating-Point Accumulation Loop
@@ -48,7 +59,7 @@ int main(int argc, char** argv) {
         config.total_operations = 1'000'000;
 
         double sum = 0.0;
-        BenchRunner::run_with_setup(
+        auto res = BenchRunner::run_with_setup(
             config,
             [&]() { sum = 0.0; },
             [&]() {
@@ -61,6 +72,7 @@ int main(int argc, char** argv) {
             },
             [&]() { do_not_optimize(sum); }
         );
+        all_results.push_back(res);
     }
 
     // 3. Workload C: Contiguous Array Traversal
@@ -75,7 +87,7 @@ int main(int argc, char** argv) {
         config.total_bytes = element_count * sizeof(uint64_t);
 
         uint64_t checksum = 0;
-        BenchRunner::run_with_setup(
+        auto res = BenchRunner::run_with_setup(
             config,
             [&]() { checksum = 0; },
             [&]() {
@@ -88,6 +100,7 @@ int main(int argc, char** argv) {
             },
             [&]() { do_not_optimize(checksum); }
         );
+        all_results.push_back(res);
     }
 
     // 4. Workload D: Deterministic Scalar Transform over Array
@@ -100,7 +113,7 @@ int main(int argc, char** argv) {
         config.total_operations = element_count;
         config.total_bytes = element_count * sizeof(float);
 
-        BenchRunner::run(
+        auto res = BenchRunner::run(
             config,
             [&]() {
                 for (size_t i = 0; i < data.size(); ++i) {
@@ -109,6 +122,48 @@ int main(int argc, char** argv) {
                 do_not_optimize(data.data());
             }
         );
+        all_results.push_back(res);
+    }
+
+    // CSV EXPORT
+    if (!csv_path.empty()) {
+        std::ifstream check_file(csv_path.c_str());
+        bool file_exists = check_file.good();
+        check_file.close();
+
+        if (file_exists && !overwrite_csv) {
+            std::cerr << "[CSV Error] Target CSV file already exists and --overwrite was not set: " << csv_path << "\n";
+            return 1;
+        }
+
+        std::ofstream csv(csv_path.c_str(), std::ios::out | std::ios::trunc);
+        if (!csv.is_open()) {
+            std::cerr << "[CSV Error] Failed to open CSV file for writing: " << csv_path << "\n";
+            return 1;
+        }
+
+        csv << "benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec\n";
+        for (const auto& r : all_results) {
+            csv << "\"" << r.config.name << "\",\""
+                << r.config.workload_name << "\",\""
+                << r.build_config << "\",\""
+                << r.compiler_info << "\",\""
+                << r.arch_info << "\",\""
+                << r.os_info << "\","
+                << r.config.warmups << ","
+                << r.config.iterations << ","
+                << std::fixed << std::setprecision(4)
+                << r.mean_us << ","
+                << r.median_us << ","
+                << r.stddev_us << ","
+                << r.min_us << ","
+                << r.max_us << ","
+                << std::fixed << std::setprecision(2)
+                << r.ops_per_sec << ","
+                << (r.config.total_bytes > 0 ? std::to_string(r.mb_per_sec) : "")
+                << "\n";
+        }
+        std::cout << "\n[CSV Export] All " << all_results.size() << " benchmark results successfully written to: " << csv_path << "\n";
     }
 
     std::cout << "[Harness Validation Complete] All baseline workloads executed cleanly.\n";

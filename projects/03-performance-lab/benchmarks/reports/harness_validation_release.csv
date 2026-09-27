@@ -1,2 +1,5 @@
 benchmark_name,workload,build_config,compiler,architecture,os,warmups,iterations,mean_us,median_us,stddev_us,min_us,max_us,ops_per_sec,mb_per_sec
-"harness_validation","scalar_transform","Release","MSVC 1951","x86_64","Windows",5,100,119.9510,112.7000,30.2060,112.6000,342.7000,2084184375.29,8336.74
+"harness_validation","integer_accumulation","Release","MSVC 1951","x86_64","Windows",5,100,135.0990,140.5500,24.2044,112.3000,228.7000,7401979289.26,
+"harness_validation","float_accumulation","Release","MSVC 1951","x86_64","Windows",5,100,695.8220,690.4000,20.4085,676.8000,786.2000,1437149155.96,
+"harness_validation","array_traversal","Release","MSVC 1951","x86_64","Windows",5,100,131.2420,121.5000,25.3971,116.9000,261.4000,3809756023.22,30478.048186
+"harness_validation","scalar_transform","Release","MSVC 1951","x86_64","Windows",5,100,119.2290,115.5500,12.4389,112.6000,180.7000,2096805307.43,8387.221230
