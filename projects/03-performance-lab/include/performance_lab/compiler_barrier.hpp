@@ -23,7 +23,7 @@ namespace performance_lab {
 template <typename T>
 inline void do_not_optimize(T&& value) {
 #if defined(__GNUC__) || defined(__clang__)
-    asm volatile("" : "+r,m"(value) :: "memory");
+    asm volatile("" : : "r,m"(value) : "memory");
 #elif defined(_MSC_VER)
     // Force compiler to write to memory and prevent dead-code stripping
     char volatile* p = reinterpret_cast<char volatile*>(&value);
