@@ -1,32 +1,84 @@
 # Graphics & Simulation Lab
 
-Welcome to the **Graphics & Simulation Lab**, a personal technical laboratory and public portfolio dedicated to low-level computer graphics, rendering systems, voxel representations, dynamic simulation, GPU programming, and developer tooling.
+Welcome to the **Graphics & Simulation Lab**, a personal technical laboratory and systems engineering portfolio dedicated to first-principles computer graphics, volumetric voxel rendering, high-performance C++ micro-benchmarking, SIMD vectorization, lock-free queue concurrency, and memory allocator design.
 
 ---
 
 ## Vision & Core Philosophy
 
-The primary objective of this repository is to build deep, first-principles engineering projects with rigorous code quality, measurements, reproducibility, and architectural clarity.
+The primary objective of this repository is to build deep, first-principles systems engineering projects with rigorous code quality, empirical performance measurements, deterministic correctness verification, and architectural clarity.
 
 ### Core Architectural Principle
 > **DO NOT build a giant shared engine/framework upfront.**
 
-Each project in this repository is designed to be **independently understandable and buildable**. Shared libraries (`libs/`) are extracted only after there is proven reuse across multiple working projects.
+Each project in this repository is designed to be **independently buildable and self-contained**. Shared libraries (`libs/`) are extracted only after there is proven, multi-project architectural reuse.
 
 ---
 
-## Project Roadmap
+## Project Index
 
-| # | Project | Planned Scope & Focus | Status |
-|---|---|---|---|
-| **01** | [CPU Ray Tracer](projects/01-raytracer/) | First-principles ray tracing: spheres, camera, materials, reflections, refractions, BVH acceleration, multithreading. | Complete (Milestones 1-5) |
-| **02** | [Voxel Engine](projects/02-voxel-engine/) | Chunked voxel storage, greedy meshing, procedural terrain generation, fast ray casting. | NEXT (Design Phase) |
-| **03** | [Performance Lab](projects/03-performance-lab/) | CPU/GPU profiling, cache locality, SIMD vectorization, memory access pattern benchmarks. | Planned |
-| **04** | [Procedural Destruction Sandbox](projects/04-destruction-sandbox/) | Voronoi fracturing, rigid body dynamic simulation, impulse solvers, structural connectivity. | Planned |
-| **05** | [GPU Crater Simulator](projects/05-crater-simulator/) | Compute shaders, heightmap deformation, impact energy distribution, particle ejecta. | Planned |
-| **06** | [Tiny Game Engine](projects/06-tiny-engine/) | Minimalist 3D render pipeline, scene graph, entity component system, input handling. | Planned |
-| **07** | [WebGPU 3D Engine](projects/07-webgpu-engine/) | Modern web-native graphics pipeline, WGSL shaders, PBR rendering, glTF loading. | Planned |
-| **08** | [Godot Project Analyzer](projects/08-godot-analyzer/) | Static analysis, asset dependency graphs, performance diagnostics, developer tooling. | Planned |
+| Project | Name | Status | Primary Focus |
+| ------- | ---- | ------ | ------------- |
+| **01** | [CPU Ray Tracer](projects/01-raytracer/) | Complete (`project-01-complete`) | First-principles ray tracing, BVH acceleration, materials, multithreaded rendering. |
+| **02** | [Voxel Engine](projects/02-voxel-engine/) | Complete (`project-02-complete`) | Volumetric 3D spatial grids, naive/greedy meshing, dynamic chunk streaming, LOD, OpenGL viewer. |
+| **03** | [Performance Lab](projects/03-performance-lab/) | Complete (`project-03-complete`) | Hardware-aware benchmarking, cache locality, SIMD vectorization, queue concurrency, memory allocators. |
+| **04** | [Procedural Destruction Sandbox](projects/04-destruction-sandbox/) | Planned (Not Started) | Voronoi 2D/3D partitioning, rigid body dynamics, collision manifolds, impulse solvers. |
+| **05** | [GPU Crater Simulator](projects/05-crater-simulator/) | Planned | GPGPU compute shaders, heightmap deformation, impact dynamics, particle ejecta. |
+| **06** | [Tiny Game Engine](projects/06-tiny-engine/) | Planned | ECS runtime architecture, transform hierarchies, scene graphs, asset pipeline. |
+| **07** | [WebGPU 3D Engine](projects/07-webgpu-engine/) | Planned | WGSL shaders, WebGPU graphics pipeline, PBR rendering, glTF loading. |
+| **08** | [Godot Project Analyzer](projects/08-godot-analyzer/) | Planned | Static AST analysis, scene asset cross-referencing, dependency graph diagnostics. |
+
+---
+
+## Completed Projects Overview
+
+### Project 01 — CPU Ray Tracer
+[Project 01 — CPU Ray Tracer Documentation](projects/01-raytracer/)
+
+A deterministic, multithreaded CPU ray tracing engine built from first principles in C++20:
+- **Ray-Geometry Intersections**: Sphere, AABB, and triangle ray intersection testing.
+- **Surface & Material Shading**: Lambertian diffuse, metallic specular reflection, dielectric refraction with Snell's law and Schlick approximation, and positional light sources with shadow rays.
+- **Acceleration & Parallelism**: Bounding Volume Hierarchy (BVH) spatial partitioning and multi-threaded tile rendering.
+- **Camera & Artifacts**: Thin-lens depth of field, configurable aperture/focus distance, and anti-aliased image output.
+
+### Project 02 — Voxel Engine
+[Project 02 — Voxel Engine Documentation](projects/02-voxel-engine/)
+
+A high-performance volumetric voxel engine handling large-scale terrain streaming and meshing:
+- **World Architecture**: Contiguous $32^3$ chunk storage using compact 2-byte voxel payloads, supporting positive and negative world-space coordinates via deterministic noise generators.
+- **Meshing Pipelines**: Naive face culling and surface-equivalent Greedy Meshing algorithms reducing vertex overhead by over 70%.
+- **Multithreaded Streaming & Buffer Reuse**: Asynchronous worker thread pool for chunk generation and meshing with neighborhood snapshot isolation, stale-result rejection, and dynamic mesh buffer recycling.
+- **Level of Detail (LOD) & Interactive Viewer**: 4-level LOD distance hierarchy, interactive OpenGL 3.3 viewer with dynamic camera controller, and real-time chunk streaming.
+
+### Project 03 — Performance Lab
+[Project 03 — Performance Lab Documentation](projects/03-performance-lab/) | [Visual Benchmark Dashboard](projects/03-performance-lab/benchmarks/report.html)
+
+A hardware-aware micro-benchmarking laboratory for low-level CPU performance engineering:
+1. **Milestone 1 — Benchmark Harness (`bench_harness`)**: High-precision monotonic timing (`std::chrono::steady_clock`), volatile optimization barriers (`do_not_optimize`), and automated CSV export infrastructure (`BenchRunner`).
+2. **Milestone 2 — Cache Locality (`bench_cache_locality`)**: Comparative analysis of Array of Structures (AoS), Structure of Arrays (SoA), and Tiled AoSoA data layouts, strided access degradation, and working-set memory scaling (4 KiB to 64 MiB).
+3. **Milestone 3 — SIMD Vectorization (`bench_simd_vectorization`)**: Intrinsic acceleration evaluating scalar reference, compiler auto-vectorization (`/O2`), SSE, and AVX2 across vector dot products, AXPY linear transforms, and batch 4-wide/8-wide ray-AABB geometry kernels.
+4. **Milestone 4 — Concurrency & Synchronization Queues (`bench_lockfree_queues`)**: Empirical contention study comparing `MutexBoundedQueue`, lock-free `SpscQueue`, and sequence-number `MpmcBoundedQueue` across thread topology scaling (1P1C to 8P8C) and capacity variations.
+5. **Milestone 5 — Memory Allocators (`bench_allocator_churn`)**: Allocation churn evaluation comparing `std::malloc`/`free`, `std::allocator`, preallocated `FixedBlockPool` (intrusive free-list), and `LinearArena` (monotonic bump allocation with bulk $O(1)$ reset) across fixed/variable churn, frame temporary memory, pool reuse, and capacity scaling.
+- **Interactive Visual Dashboard**: Self-contained offline visual dashboard ([report.html](projects/03-performance-lab/benchmarks/report.html)) rendering embedded SVG bar charts and speedup metrics derived from 10 canonical CSV reports.
+
+---
+
+## Current Repository Status
+
+- **Projects Completed**: Project 01 (CPU Ray Tracer), Project 02 (Voxel Engine), and Project 03 (Performance Lab).
+- **Completion Tags**: `project-01-complete`, `project-02-complete`, `project-03-complete` (commit `c8f044a90e015dacee50aaa3ac76fcdd760d2e93`).
+- **Next Planned Project**: Project 04 — Procedural Destruction Sandbox (not yet started).
+- **Remote Push**: Local repository checkout only.
+
+---
+
+## Core Engineering Principles
+
+1. **Deterministic Experiments**: Workload inputs, ray packets, terrain seeds, queue payloads, and allocation sequences are strictly deterministic to guarantee reproducible benchmark results.
+2. **Empirical Benchmarking**: Performance conclusions are drawn strictly from empirical runtime timing measurements, avoiding unverified theoretical claims or compiler assumptions.
+3. **Correctness Before Optimization**: All algorithms pass rigorous functional unit tests and mathematical output verification before timing data is recorded.
+4. **Distinction of Measured Facts vs Interpretation**: Clear boundary between measured raw metrics (e.g., ops/sec, execution time, MB/s) and architectural interpretation.
+5. **Independent Project Boundaries**: Each project maintains its own isolated build configuration, test suites, and documentation without premature coupling.
 
 ---
 
@@ -45,21 +97,27 @@ cmake --preset default
 # Build all available targets
 cmake --build --preset default
 
-# Run test suite via CTest
-ctest --preset default
+# Run complete test suite via CTest (36 test targets)
+ctest --preset default --output-on-failure
 ```
 
-### Manual Configuration
+### Manual Configuration & Execution
 
 ```bash
-# Configure out-of-tree build
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+# Configure out-of-tree Release build
+cmake -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-# Compile
-cmake --build build
+# Compile all targets
+cmake --build build/release
 
-# Test
-ctest --test-dir build --output-on-failure
+# Run full CTest suite
+ctest --test-dir build/release --output-on-failure
+
+# Execute Project 03 Benchmark Suite
+./build/release/projects/03-performance-lab/bench_cache_locality.exe
+./build/release/projects/03-performance-lab/bench_simd_vectorization.exe
+./build/release/projects/03-performance-lab/bench_lockfree_queues.exe
+./build/release/projects/03-performance-lab/bench_allocator_churn.exe
 ```
 
 ---
@@ -75,13 +133,12 @@ graphics-sim-lab/
 ├── docs/                       # Technical documentation & principles
 │   ├── roadmap.md              # Detailed project roadmap
 │   ├── architecture.md         # Repository architectural rules
-│   ├── engineering-principles.md # Core engineering principles
-│   ├── benchmarking.md         # Benchmarking protocols
-│   └── lab-notes/              # Ongoing experimental notes
+│   └── engineering-principles.md # Core engineering principles
 ├── projects/                   # Independent engineering projects
-│   ├── 01-raytracer/           # CPU Ray Tracer (Complete)
-│   ├── 02-voxel-engine/        # Voxel Engine (In Design)
-│   └── ...                     # Projects 03 - 08
+│   ├── 01-raytracer/           # Project 01 — CPU Ray Tracer (Complete)
+│   ├── 02-voxel-engine/        # Project 02 — Voxel Engine (Complete)
+│   ├── 03-performance-lab/     # Project 03 — Performance Lab (Complete)
+│   └── 04-destruction-sandbox/ # Project 04 — Procedural Destruction (Planned)
 ├── libs/                       # Shared components (extracted only on proven reuse)
 └── tools/                      # Benchmark & build scripts
 ```
@@ -90,4 +147,4 @@ graphics-sim-lab/
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This repository is licensed under the [MIT License](LICENSE).
